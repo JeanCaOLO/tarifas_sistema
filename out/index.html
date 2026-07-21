@@ -103,9 +103,10 @@
 
   /* ---------- Cabecera Oferente ---------- */
   .oferente-block{
-    display:grid; grid-template-columns:1fr 1fr; gap:14px 22px;
+    display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px 22px;
     padding:18px 28px; background:var(--mint-soft); border-bottom:1px solid var(--line);
   }
+  @media (max-width:900px){ .oferente-block{ grid-template-columns:1fr 1fr; } }
   @media (max-width:720px){ .oferente-block{ grid-template-columns:1fr; } }
   .field label{
     display:block; font-size:12.5px; font-weight:700; color:var(--teal-dark);
@@ -117,8 +118,10 @@
     border:1px solid var(--line); border-radius:7px; background:#fff;
   }
   .field input:focus{ outline:2px solid var(--teal); outline-offset:0; border-color:var(--teal); }
+  .field select:focus{ outline:2px solid var(--teal); outline-offset:0; border-color:var(--teal); }
   .field .hint{ font-size:12px; color:var(--red); margin-top:4px; display:none; }
   .field.invalid input{ border-color:var(--red); }
+  .field.invalid select{ border-color:var(--red); }
   .field.invalid .hint{ display:block; }
 
   /* ---------- Tabla de tarifas (fiel al Anexo B) ---------- */
@@ -325,6 +328,14 @@
           <input id="inpEmail" type="email" maxlength="200" autocomplete="email" placeholder="contacto@empresa.com">
           <div class="hint">Revisa el formato del correo (ej. nombre@empresa.com).</div>
         </div>
+        <div class="field" id="fieldRegion">
+          <label for="inpRegion">Región <span aria-hidden="true">*</span></label>
+          <select id="inpRegion" multiple style="width:100%; padding:9px 11px; font:inherit; color:var(--ink); border:1px solid var(--line); border-radius:7px; background:#fff; min-height:62px;">
+            <option value="CA">CA</option>
+            <option value="VE">VE</option>
+          </select>
+          <div class="hint">Selecciona al menos una región (mantén Ctrl para selección múltiple).</div>
+        </div>
       </div>
 
       <div class="section-head">
@@ -435,6 +446,7 @@ en Destino</th>
       <div class="resumen">
         <div><span>País</span><b id="sumPais">—</b></div>
         <div><span>Oferente</span><b id="sumOferente">—</b></div>
+        <div><span>Región</span><b id="sumRegion">—</b></div>
         <div><span>Rutas cotizadas</span><b id="sumRutas">0</b></div>
       </div>
     </div>
@@ -577,12 +589,14 @@ function openForm(code) {
   $('formTitle').textContent = 'Tarifas Marítimas — ' + paisActual.nombre;
   $('inpOferente').value = '';
   $('inpEmail').value = '';
+  Array.from($('inpRegion').options).forEach(o => o.selected = false);
   ['c_vigencia_del','c_vigencia_al','c_tarifas_incluyen','c_tarifas_no_incluyen',
    'c_dias_libres_destino','c_herramienta_seguimiento','c_credito_dias','c_observaciones',
    'g_impresion_bl','g_retiro_vacio','g_demora_contenedor','g_demora_chasis','g_chasis_3_ejes'
   ].forEach((id) => { $(id).value = ''; });
   $('fieldOferente').classList.remove('invalid');
   $('fieldEmail').classList.remove('invalid');
+  $('fieldRegion').classList.remove('invalid');
   renderMatriz();
   updateProgress();
   switchView('form');
@@ -637,6 +651,7 @@ function updateProgress() {
 function validar() {
   const oferente = $('inpOferente').value.trim();
   const email = $('inpEmail').value.trim();
+  const regionSel = Array.from($('inpRegion').selectedOptions).map(o => o.value);
   let ok = true;
 
   $('fieldOferente').classList.toggle('invalid', !oferente);
@@ -645,6 +660,9 @@ function validar() {
   const emailOk = !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   $('fieldEmail').classList.toggle('invalid', !emailOk);
   if (!emailOk) ok = false;
+
+  $('fieldRegion').classList.toggle('invalid', regionSel.length === 0);
+  if (regionSel.length === 0) ok = false;
 
   if (!ok) {
     showMsg('Faltan datos', 'Revisa los campos marcados en rojo en la cabecera del formulario.');
@@ -662,9 +680,11 @@ function validar() {
 function abrirConfirmacion() {
   const v = validar();
   if (!v) return;
+  const regionSel = Array.from($('inpRegion').selectedOptions).map(o => o.value);
   $('sumPais').textContent = `${paisActual.nombre} (${paisActual.code})`;
   $('sumOferente').textContent = v.oferente;
   $('sumRutas').textContent = String(v.cotizadas);
+  $('sumRegion').textContent = regionSel.join(', ');
   $('confirmOverlay').classList.add('open');
 }
 
@@ -682,10 +702,12 @@ function construirPayload() {
       tarifa_40_std: numOrNull(f.tarifa_40_std),
       tarifa_40_hc:  numOrNull(f.tarifa_40_hc)
     }));
+  const regionSel = Array.from($('inpRegion').selectedOptions).map(o => o.value);
   return {
     pais: paisActual.code,
     oferente: $('inpOferente').value.trim(),
     email_contacto: $('inpEmail').value.trim() || null,
+    region: regionSel,
     vigencia_del: $('c_vigencia_del').value || null,
     vigencia_al:  $('c_vigencia_al').value  || null,
     tarifas_incluyen:        $('c_tarifas_incluyen').value.trim() || null,

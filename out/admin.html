@@ -293,7 +293,7 @@
           <table class="grid">
             <thead>
               <tr>
-                <th>Fecha</th><th>Folio</th><th>País</th><th>Oferente</th><th>Correo</th>
+                <th>Fecha</th><th>Folio</th><th>País</th><th>Región</th><th>Oferente</th><th>Correo</th>
                 <th class="th-num">Rutas cotizadas</th><th style="text-align:right">Acciones</th>
               </tr>
             </thead>
@@ -609,6 +609,7 @@ function renderRespuestas() {
       <td style="white-space:nowrap">${fmtFecha(r.created_at)}</td>
       <td><span class="folio">${folioDe(r.id)}</span></td>
       <td><span class="badge">${esc(r.pais_nombre)}</span></td>
+      <td>${esc(r.region ? (Array.isArray(r.region) ? r.region.join(', ') : r.region) : '—')}</td>
       <td style="font-weight:600">${esc(r.oferente)}</td>
       <td>${esc(r.email_contacto || '—')}</td>
       <td class="td-num num">${r.rutas_cotizadas} / ${TOTAL_RUTAS}</td>
@@ -677,6 +678,7 @@ function abrirDetalle(id) {
       <div><b>Oferente</b>${esc(r.oferente)}</div>
       <div><b>País</b>${esc(r.pais_nombre)} (${esc(r.pais)})</div>
       <div><b>Correo</b>${esc(r.email_contacto || '—')}</div>
+      <div><b>Región</b>${esc(r.region ? (Array.isArray(r.region) ? r.region.join(', ') : r.region) : '—')}</div>
       <div><b>Rutas cotizadas</b>${r.rutas_cotizadas} / ${TOTAL_RUTAS}</div>
     </div>
     <div class="detail-scroll">
@@ -753,7 +755,7 @@ function exportarConsolidado() {
   if (!lista.length) { showMsg('Nada que exportar', 'No hay respuestas con los filtros actuales.', false); return; }
 
   const hojaResp = [[
-    'Folio','Fecha','País','Oferente','Correo','Rutas cotizadas',
+    'Folio','Fecha','País','Región','Oferente','Correo','Rutas cotizadas',
     'Vigencia del','Vigencia al','Las tarifas incluyen','Las tarifas NO incluyen',
     'Días libres en destino','Herramienta para seguimiento','Credito (días)','Observaciones',
     'Impresión de BL (USD)','Retiro de vacío (USD)','Demoras contenedor por día (USD)',
@@ -761,7 +763,9 @@ function exportarConsolidado() {
   ]];
   for (const r of lista) {
     hojaResp.push([
-      folioDe(r.id), fmtFecha(r.created_at), r.pais_nombre, r.oferente, r.email_contacto || '',
+      folioDe(r.id), fmtFecha(r.created_at), r.pais_nombre,
+      r.region ? (Array.isArray(r.region) ? r.region.join(', ') : r.region) : '',
+      r.oferente, r.email_contacto || '',
       r.rutas_cotizadas, r.vigencia_del || '', r.vigencia_al || '',
       r.tarifas_incluyen || '', r.tarifas_no_incluyen || '', r.dias_libres_destino || '',
       r.herramienta_seguimiento || '', r.credito_dias ?? '', r.observaciones || '',
