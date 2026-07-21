@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Matriz de Tarifas Marítimas · RFP 2026-2027</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --teal:#00B497;        /* banner del Anexo B */
+    --teal-dark:#007A63;   /* encabezado de tabla del Anexo B */
+    --teal-deep:#055D4D;
+    --mint:#EAF6F4;        /* etiquetas del Anexo B */
+    --mint-soft:#F2FBF9;   /* zebra del Anexo B */
+    --ink:#25211F;         /* texto del Anexo B */
+    --muted:#6B7A76;
+    --line:#D7E8E3;
+    --paper:#FFFFFF;
+    --bg:#EFF5F3;
+    --amber-bg:#FFF6E3; --amber:#8A5A00; --amber-line:#F0D9A0;
+    --red:#B3402E; --red-bg:#FBEDEA;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(5,93,77,.06), 0 10px 30px -12px rgba(5,93,77,.18);
+  }
+  *{ box-sizing:border-box; }
+  html{ -webkit-text-size-adjust:100%; }
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:'Barlow', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-size:15px; line-height:1.45;
+  }
+  ::selection{ background:#BDEAE1; }
+
+  .wrap{ max-width:1240px; margin:0 auto; padding:28px 16px 120px; }
+  .doc{
+    background:var(--paper); border:1px solid var(--line);
+    border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden;
+  }
+
+  /* ---------- Banner del documento (fiel al Anexo B) ---------- */
+  .banner{ background:var(--teal); color:#fff; padding:20px 28px 18px; }
+  .banner h1{
+    margin:0; font-size:clamp(19px, 2.6vw, 27px); font-weight:800;
+    letter-spacing:.06em; text-transform:uppercase;
+  }
+  .subbar{
+    background:var(--mint); color:var(--teal-dark);
+    padding:9px 28px; font-size:13px; font-weight:600;
+    border-bottom:1px solid var(--line);
+    display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  }
+  .subbar .anexo{ color:var(--muted); font-weight:500; }
+
+  /* ---------- Aviso de configuración ---------- */
+  .config-note{
+    display:none; margin:0 0 20px; padding:12px 16px;
+    background:var(--amber-bg); border:1px solid var(--amber-line);
+    border-radius:var(--radius); color:var(--amber); font-size:13.5px;
+  }
+  .config-note code{ font-family:ui-monospace, Menlo, Consolas, monospace; font-size:12.5px; }
+
+  /* ---------- Selección de país ---------- */
+  .intro{ padding:26px 28px 8px; }
+  .intro h2{ margin:0 0 4px; font-size:17px; font-weight:700; color:var(--teal-deep); }
+  .intro p{ margin:0; color:var(--muted); font-size:14px; }
+  .country-grid{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(230px, 1fr));
+    gap:14px; padding:20px 28px 30px;
+  }
+  .country-card{
+    display:flex; align-items:center; gap:14px; text-align:left;
+    padding:18px; background:var(--paper);
+    border:1px solid var(--line); border-left:4px solid var(--teal);
+    border-radius:var(--radius); cursor:pointer;
+    font:inherit; color:inherit;
+    transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+  }
+  .country-card:hover{ transform:translateY(-2px); box-shadow:var(--shadow); border-color:var(--teal); }
+  .country-card:focus-visible{ outline:3px solid var(--teal); outline-offset:2px; }
+  .country-card .code{
+    flex:none; width:52px; height:52px; border-radius:9px;
+    background:var(--teal-dark); color:#fff; display:grid; place-items:center;
+    font-weight:800; font-size:16px; letter-spacing:.04em;
+  }
+  .country-card .t{ font-weight:700; font-size:16px; }
+  .country-card .s{ color:var(--muted); font-size:13px; margin-top:2px; }
+
+  /* ---------- Cabecera Oferente ---------- */
+  .oferente-block{
+    display:grid; grid-template-columns:1fr 1fr; gap:14px 22px;
+    padding:18px 28px; background:var(--mint-soft); border-bottom:1px solid var(--line);
+  }
+  @media (max-width:720px){ .oferente-block{ grid-template-columns:1fr; } }
+  .field label{
+    display:block; font-size:12.5px; font-weight:700; color:var(--teal-dark);
+    margin-bottom:5px; letter-spacing:.02em;
+  }
+  .field label .opt{ font-weight:500; color:var(--muted); }
+  .field input{
+    width:100%; padding:9px 11px; font:inherit; color:var(--ink);
+    border:1px solid var(--line); border-radius:7px; background:#fff;
+  }
+  .field input:focus{ outline:2px solid var(--teal); outline-offset:0; border-color:var(--teal); }
+  .field .hint{ font-size:12px; color:var(--red); margin-top:4px; display:none; }
+  .field.invalid input{ border-color:var(--red); }
+  .field.invalid .hint{ display:block; }
+
+  /* ---------- Tabla de tarifas (fiel al Anexo B) ---------- */
+  .section-head{
+    display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+    padding:18px 28px 10px; flex-wrap:wrap;
+  }
+  .section-head h3{ margin:0; font-size:15px; font-weight:800; letter-spacing:.05em; color:var(--teal-deep); text-transform:uppercase; }
+  .section-head .note{ font-size:12.5px; color:var(--muted); }
+  .table-scroll{
+    margin:0 28px 6px; border:1px solid var(--line); border-radius:8px;
+    overflow:auto; max-height:min(68vh, 620px); overscroll-behavior:contain;
+  }
+  table.matriz{ border-collapse:separate; border-spacing:0; width:100%; min-width:1080px; }
+  .matriz th{
+    position:sticky; top:0; z-index:3;
+    background:var(--teal-dark); color:#fff; font-size:12px; font-weight:700;
+    padding:9px 8px; text-align:left; white-space:pre-line; line-height:1.25;
+    border-bottom:2px solid var(--teal-deep);
+  }
+  .matriz th.num, .matriz td.num{ text-align:right; }
+  .matriz th:first-child{ left:0; z-index:4; }
+  .matriz td{
+    border-bottom:1px solid #E4F0EC; padding:0; font-size:13.5px; vertical-align:middle;
+    background:#fff;
+  }
+  .matriz tbody tr:nth-child(even) td{ background:var(--mint-soft); }
+  .matriz td.fix{ padding:7px 9px; white-space:nowrap; }
+  .matriz td.fix .region{ color:var(--muted); }
+  .matriz td:first-child{
+    position:sticky; left:0; z-index:2; font-weight:600;
+    border-right:1px solid var(--line);
+  }
+  .matriz td input{
+    width:100%; border:0; background:transparent; font:inherit; color:var(--ink);
+    padding:8px 9px; min-width:0;
+  }
+  .matriz td input:focus{ outline:2px solid var(--teal); outline-offset:-2px; background:#fff; }
+  .matriz td.num input{ text-align:right; font-variant-numeric:tabular-nums; }
+  .matriz td input::placeholder{ color:#A9BDB8; }
+  /* anchos de columna */
+  .matriz col.c-origen{ width:200px; } .matriz col.c-region{ width:92px; }
+  .matriz col.c-destino{ width:110px; } .matriz col.c-dias{ width:88px; }
+  .matriz col.c-naviera{ width:160px; } .matriz col.c-transito{ width:128px; }
+  .matriz col.c-puerto{ width:160px; } .matriz col.c-tarifa{ width:104px; }
+
+  /* ---------- Condiciones comerciales ---------- */
+  .cond-bar{
+    margin:22px 28px 0; padding:10px 14px; border-radius:8px 8px 0 0;
+    background:var(--teal); color:#fff; font-weight:800; font-size:13.5px;
+    letter-spacing:.05em; text-transform:uppercase;
+  }
+  .cond-sub{
+    margin:0 28px; padding:8px 14px;
+    background:var(--mint); color:var(--teal-dark); font-weight:700; font-size:13px;
+    border:1px solid var(--line); border-top:0;
+  }
+  .cond-grid{ margin:0 28px; border:1px solid var(--line); border-top:0; border-radius:0 0 8px 8px; overflow:hidden; }
+  .cond-row{ display:grid; grid-template-columns:260px 1fr; border-top:1px solid var(--line); }
+  .cond-row:first-child{ border-top:0; }
+  .cond-row > .lbl{
+    background:var(--mint); color:var(--teal-dark); font-weight:700; font-size:13px;
+    padding:11px 14px; border-right:1px solid var(--line); display:flex; align-items:center;
+  }
+  .cond-row > .val{ padding:7px 10px; background:#fff; }
+  .cond-row textarea, .cond-row input[type="text"]{
+    width:100%; border:1px solid transparent; border-radius:6px; background:transparent;
+    font:inherit; color:var(--ink); padding:6px 8px; resize:vertical;
+  }
+  .cond-row textarea{ min-height:58px; }
+  .cond-row input[type="number"], .cond-row input[type="date"]{
+    border:1px solid var(--line); border-radius:6px; background:#fff;
+    font:inherit; color:var(--ink); padding:7px 9px;
+  }
+  .cond-row textarea:focus, .cond-row input:focus{ outline:2px solid var(--teal); outline-offset:-1px; background:#fff; }
+  .vigencia{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:13.5px; color:var(--muted); }
+  .money{ display:flex; align-items:center; gap:8px; }
+  .money .cur{ font-size:12.5px; font-weight:700; color:var(--muted); }
+  .money input{ width:160px; text-align:right; font-variant-numeric:tabular-nums; }
+  @media (max-width:720px){
+    .cond-row{ grid-template-columns:1fr; }
+    .cond-row > .lbl{ border-right:0; border-bottom:1px solid var(--line); }
+  }
+
+  /* ---------- Barra de acciones ---------- */
+  .actions{
+    position:fixed; left:0; right:0; bottom:0; z-index:20;
+    background:rgba(255,255,255,.96); backdrop-filter:blur(4px);
+    border-top:1px solid var(--line); box-shadow:0 -8px 24px -18px rgba(5,93,77,.4);
+  }
+  .actions .inner{
+    max-width:1240px; margin:0 auto; padding:12px 16px;
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  }
+  .progress-pill{
+    display:inline-flex; align-items:center; gap:8px;
+    background:var(--mint); color:var(--teal-deep); font-weight:700; font-size:13.5px;
+    padding:8px 14px; border-radius:999px; border:1px solid var(--line);
+    font-variant-numeric:tabular-nums;
+  }
+  .progress-pill .dot{ width:9px; height:9px; border-radius:50%; background:var(--teal); }
+  .actions .usd-note{ color:var(--muted); font-size:12.5px; }
+  .actions .spacer{ flex:1; }
+  .btn{
+    font:inherit; font-weight:700; border-radius:8px; cursor:pointer;
+    padding:11px 20px; border:1px solid transparent;
+    transition:background .12s ease, transform .06s ease;
+  }
+  .btn:active{ transform:translateY(1px); }
+  .btn:focus-visible{ outline:3px solid var(--teal); outline-offset:2px; }
+  .btn-primary{ background:var(--teal); color:#fff; }
+  .btn-primary:hover{ background:var(--teal-dark); }
+  .btn-primary[disabled]{ background:#9ED4C9; cursor:default; }
+  .btn-ghost{ background:transparent; color:var(--teal-dark); border-color:var(--line); }
+  .btn-ghost:hover{ background:var(--mint-soft); }
+  .back-link{
+    display:inline-flex; align-items:center; gap:6px; margin:0 0 12px;
+    background:none; border:0; font:inherit; font-weight:600; color:var(--teal-dark);
+    cursor:pointer; padding:4px 2px;
+  }
+  .back-link:hover{ text-decoration:underline; }
+  .back-link:focus-visible{ outline:2px solid var(--teal); outline-offset:2px; border-radius:4px; }
+
+  /* ---------- Éxito ---------- */
+  .success{ text-align:center; padding:64px 24px 72px; }
+  .success .check{
+    width:78px; height:78px; margin:0 auto 18px; border-radius:50%;
+    background:var(--mint); display:grid; place-items:center;
+  }
+  .success h2{ margin:0 0 6px; font-size:24px; color:var(--teal-deep); }
+  .success p{ margin:0 0 4px; color:var(--muted); }
+  .folio{
+    display:inline-block; margin:14px 0 26px; padding:8px 16px;
+    background:var(--mint); border:1px dashed var(--teal); border-radius:8px;
+    font-family:ui-monospace, Menlo, Consolas, monospace; font-weight:700;
+    color:var(--teal-deep); letter-spacing:.08em; font-size:15px;
+  }
+
+  /* ---------- Modales ---------- */
+  .overlay{
+    position:fixed; inset:0; z-index:50; display:none;
+    background:rgba(20,42,37,.45); padding:20px;
+    align-items:center; justify-content:center;
+  }
+  .overlay.open{ display:flex; }
+  .modal{
+    background:#fff; border-radius:12px; max-width:460px; width:100%;
+    box-shadow:0 24px 60px -20px rgba(5,93,77,.5); overflow:hidden;
+  }
+  .modal .m-head{ padding:16px 20px 0; font-size:17px; font-weight:800; color:var(--teal-deep); }
+  .modal .m-head.err{ color:var(--red); }
+  .modal .m-body{ padding:10px 20px 4px; color:var(--ink); font-size:14px; }
+  .modal .m-body .resumen{ margin:10px 0 0; padding:10px 12px; background:var(--mint-soft); border:1px solid var(--line); border-radius:8px; font-size:13.5px; }
+  .modal .m-body .resumen div{ display:flex; justify-content:space-between; gap:12px; padding:2px 0; }
+  .modal .m-body .resumen b{ color:var(--teal-deep); }
+  .modal .m-foot{ display:flex; justify-content:flex-end; gap:10px; padding:16px 20px 18px; }
+
+  footer.credits{ text-align:center; color:var(--muted); font-size:12px; margin-top:22px; }
+  [hidden]{ display:none !important; }
+  @media (prefers-reduced-motion: reduce){
+    *{ transition:none !important; animation:none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="configNote" class="config-note">
+    ⚙ <b>Conexión a Supabase sin configurar.</b> Abre este archivo y reemplaza
+    <code>SUPABASE_URL</code> y <code>SUPABASE_ANON_KEY</code> al inicio del bloque
+    <code>&lt;script&gt;</code> (los envíos están deshabilitados hasta entonces).
+  </div>
+
+  <!-- ================= VISTA 1 · Selección de país ================= -->
+  <section id="view-select" class="doc" aria-label="Selección de formulario">
+    <div class="banner"><h1>Matriz de Tarifas Marítimas</h1></div>
+    <div class="subbar"><span>Request For Proposal 2026-2027</span><span class="anexo">Anexo B</span></div>
+    <div class="intro">
+      <h2>Selecciona el formulario que vas a completar</h2>
+      <p>Cada formulario contiene las 54 rutas de origen y las condiciones comerciales del país de destino.</p>
+    </div>
+    <div class="country-grid" id="countryGrid"></div>
+  </section>
+
+  <!-- ================= VISTA 2 · Formulario ================= -->
+  <section id="view-form" hidden aria-label="Formulario de tarifas">
+    <button type="button" class="back-link" id="btnBack">← Elegir otro país</button>
+
+    <div class="doc">
+      <div class="banner"><h1 id="formTitle">Tarifas Marítimas</h1></div>
+      <div class="subbar"><span>Request For Proposal 2026-2027</span><span class="anexo">Anexo B · Matriz de Tarifas</span></div>
+
+      <div class="oferente-block">
+        <div class="field" id="fieldOferente">
+          <label for="inpOferente">Oferente: <span aria-hidden="true">*</span></label>
+          <input id="inpOferente" type="text" maxlength="200" autocomplete="organization" placeholder="Nombre de la empresa oferente">
+          <div class="hint">Escribe el nombre del oferente para poder enviar la respuesta.</div>
+        </div>
+        <div class="field" id="fieldEmail">
+          <label for="inpEmail">Correo de contacto <span class="opt">(opcional)</span></label>
+          <input id="inpEmail" type="email" maxlength="200" autocomplete="email" placeholder="contacto@empresa.com">
+          <div class="hint">Revisa el formato del correo (ej. nombre@empresa.com).</div>
+        </div>
+      </div>
+
+      <div class="section-head">
+        <h3>Tarifas por ruta</h3>
+        <span class="note">Completa solo las rutas que cotizas · Tarifas en USD</span>
+      </div>
+      <div class="table-scroll" tabindex="0" aria-label="Tabla de tarifas por ruta">
+        <table class="matriz">
+          <colgroup>
+            <col class="c-origen"><col class="c-region"><col class="c-destino">
+            <col class="c-dias"><col class="c-dias"><col class="c-naviera">
+            <col class="c-transito"><col class="c-puerto">
+            <col class="c-tarifa"><col class="c-tarifa"><col class="c-tarifa">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Origen</th><th>Región</th><th>Destino</th>
+              <th class="num">Días Libres
+en Origen</th>
+              <th class="num">Días Libres
+en Destino</th>
+              <th>Naviera(s)</th><th>Tiempo de tránsito</th><th>Puerto de Arribo</th>
+              <th class="num">20" STD</th><th class="num">40" STD</th><th class="num">40" HC</th>
+            </tr>
+          </thead>
+          <tbody id="matrizBody"></tbody>
+        </table>
+      </div>
+
+      <div class="cond-bar">Condiciones Comerciales</div>
+      <div class="cond-grid">
+        <div class="cond-row">
+          <div class="lbl">Vigencia</div>
+          <div class="val">
+            <div class="vigencia">
+              <span>Del</span><input type="date" id="c_vigencia_del">
+              <span>al</span><input type="date" id="c_vigencia_al">
+            </div>
+          </div>
+        </div>
+        <div class="cond-row"><div class="lbl">Las tarifas incluyen</div>
+          <div class="val"><textarea id="c_tarifas_incluyen" maxlength="2000" rows="2"></textarea></div></div>
+        <div class="cond-row"><div class="lbl">Las tarifas NO incluyen</div>
+          <div class="val"><textarea id="c_tarifas_no_incluyen" maxlength="2000" rows="2"></textarea></div></div>
+        <div class="cond-row"><div class="lbl">Días libres en destino</div>
+          <div class="val"><input type="text" id="c_dias_libres_destino" maxlength="300"></div></div>
+        <div class="cond-row"><div class="lbl">Herramienta para seguimiento</div>
+          <div class="val"><input type="text" id="c_herramienta_seguimiento" maxlength="300"></div></div>
+        <div class="cond-row"><div class="lbl">Credito (días)</div>
+          <div class="val"><input type="number" id="c_credito_dias" min="0" step="1" style="width:160px"></div></div>
+        <div class="cond-row"><div class="lbl">Observaciones</div>
+          <div class="val"><textarea id="c_observaciones" maxlength="2000" rows="2"></textarea></div></div>
+      </div>
+
+      <div class="cond-sub" style="margin-top:18px; border-top:1px solid var(--line); border-radius:8px 8px 0 0;">Gastos en destino</div>
+      <div class="cond-grid" style="margin-bottom:26px;">
+        <div class="cond-row"><div class="lbl">Impresión de BL</div>
+          <div class="val"><div class="money"><span class="cur">USD</span><input type="number" id="g_impresion_bl" min="0" step="0.01" inputmode="decimal"></div></div></div>
+        <div class="cond-row"><div class="lbl">Retiro de vacío</div>
+          <div class="val"><div class="money"><span class="cur">USD</span><input type="number" id="g_retiro_vacio" min="0" step="0.01" inputmode="decimal"></div></div></div>
+        <div class="cond-row"><div class="lbl">Demoras contenedor por día</div>
+          <div class="val"><div class="money"><span class="cur">USD</span><input type="number" id="g_demora_contenedor" min="0" step="0.01" inputmode="decimal"></div></div></div>
+        <div class="cond-row"><div class="lbl">Demoras chasis por día</div>
+          <div class="val"><div class="money"><span class="cur">USD</span><input type="number" id="g_demora_chasis" min="0" step="0.01" inputmode="decimal"></div></div></div>
+        <div class="cond-row"><div class="lbl">Chasis 3 ejes</div>
+          <div class="val"><div class="money"><span class="cur">USD</span><input type="number" id="g_chasis_3_ejes" min="0" step="0.01" inputmode="decimal"></div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= VISTA 3 · Éxito ================= -->
+  <section id="view-success" class="doc" hidden aria-label="Confirmación de envío">
+    <div class="success">
+      <div class="check" aria-hidden="true">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+          <path d="M4 12.5l5 5L20 6.5" stroke="#007A63" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h2>Respuesta enviada</h2>
+      <p id="successDetail">Tu matriz de tarifas se guardó correctamente.</p>
+      <div class="folio" id="successFolio">FOLIO</div>
+      <div>
+        <button type="button" class="btn btn-primary" id="btnAgain">Completar otro formulario</button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="credits">Request For Proposal 2026-2027 · Anexo B — Matriz de Tarifas Marítimas</footer>
+</div>
+
+<!-- Barra fija de acciones (solo en formulario) -->
+<div class="actions" id="actionsBar" hidden>
+  <div class="inner">
+    <span class="progress-pill"><span class="dot"></span><span id="progressText">0 / 54 rutas cotizadas</span></span>
+    <span class="usd-note">Todas las tarifas se expresan en USD.</span>
+    <span class="spacer"></span>
+    <button type="button" class="btn btn-ghost" id="btnCancel">Volver</button>
+    <button type="button" class="btn btn-primary" id="btnSubmit">Guardar y enviar respuesta</button>
+  </div>
+</div>
+
+<!-- Modal confirmación -->
+<div class="overlay" id="confirmOverlay" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+  <div class="modal">
+    <div class="m-head" id="confirmTitle">Enviar respuesta</div>
+    <div class="m-body">
+      Revisa el resumen antes de enviar. Una vez enviada, la respuesta no se puede modificar desde este formulario.
+      <div class="resumen">
+        <div><span>País</span><b id="sumPais">—</b></div>
+        <div><span>Oferente</span><b id="sumOferente">—</b></div>
+        <div><span>Rutas cotizadas</span><b id="sumRutas">0</b></div>
+      </div>
+    </div>
+    <div class="m-foot">
+      <button type="button" class="btn btn-ghost" id="btnConfirmCancel">Seguir editando</button>
+      <button type="button" class="btn btn-primary" id="btnConfirmSend">Enviar respuesta</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal mensaje -->
+<div class="overlay" id="msgOverlay" role="alertdialog" aria-modal="true" aria-labelledby="msgTitle">
+  <div class="modal">
+    <div class="m-head err" id="msgTitle">Aviso</div>
+    <div class="m-body" id="msgBody"></div>
+    <div class="m-foot"><button type="button" class="btn btn-primary" id="btnMsgOk">Entendido</button></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================================
+   CONFIGURACIÓN · pega aquí los datos de tu proyecto Supabase
+   (Supabase → Project Settings → API)
+============================================================================ */
+const SUPABASE_URL      = 'https://uxclsvsfjfipmcjmjzqd.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV4Y2xzdnNmamZpcG1jam1qenFkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2Njk0NDEsImV4cCI6MjEwMDI0NTQ0MX0.LF0Eg8bkKZwmf4o3yViVzKTVNsD7QcIhva4edQRbHfI';
+
+/* ============================================================================
+   CATÁLOGO · idéntico al Anexo B (54 orígenes)
+============================================================================ */
+const PAISES = [
+  { code:'CR',  nombre:'Costa Rica'  },
+  { code:'SV',  nombre:'El Salvador' },
+  { code:'GT',  nombre:'Guatemala'   },
+  { code:'VNZ', nombre:'Venezuela'   }
+];
+
+const ORIGENES = [
+  ['Altamira, México','America'],['Ancona, Italia','Europa'],['Barcelona, España','Europa'],
+  ['Barranquilla, Colombia','America'],['Bilbao, España','Europa'],['Boston, Estados Unidos','America'],
+  ['Bremerhaven, Alemania','Europa'],['Buenaventura, Colombia','America'],['Busan, Corea','Asia'],
+  ['Cabello, Venezuela','America'],['Cartagena, Colombia','America'],['Chiwan, China','Asia'],
+  ['Chongqing, China','Asia'],['Da Nang, Vietnam','Asia'],['Foshan, China','Asia'],
+  ['Fuzhou, China','Asia'],['Gaoming, China','Asia'],['Genoa, Italia','Europa'],
+  ['Guangzhou, China','Asia'],['Haifa, Israel','Europa'],['Hamburgo, Alemania','Europa'],
+  ['Hong Kong, China','Asia'],['Houston, Estados Unidos','America'],['Jiangmen, China','Asia'],
+  ['La Guaira, Venezuela','America'],['La Spezia, Italia','Europa'],['Livorno, Italia','Europa'],
+  ['Manzanillo, México','America'],['Miami, Estados Unidos','America'],['Mundra, India','Asia'],
+  ['Nansha, China','Asia'],['Navengantes, Brasil','America'],['New York, Estados Unidos','America'],
+  ['Ningbo, China','Asia'],['Norfolk, Estados Unidos','America'],['Qingdao, China','Asia'],
+  ['Rotterdam, Países Bajos','Europa'],['Río Grande, Brasil','America'],['San Vicente, Chile','America'],
+  ['Sanshan, China','Asia'],['Sanshui, China','Asia'],['Santos, Brasil','America'],
+  ['Shanghai, China','Asia'],['Shekou, China','Asia'],['Shenzhen, China','Asia'],
+  ['Subic Bay, Filipinas','Asia'],['Tianjin, China','Asia'],['Valencia, España','Europa'],
+  ['Xiamen, China','Asia'],['Xiaolan, China','Asia'],['Xingang, China','Asia'],
+  ['Yantian, China','Asia'],['Zhangjiagang, China','Asia'],['Zhongshan, China','Asia']
+];
+
+const RATE_FIELDS = [
+  'dias_libres_origen','dias_libres_destino','navieras',
+  'tiempo_transito','puerto_arribo','tarifa_20_std','tarifa_40_std','tarifa_40_hc'
+];
+
+/* ============================================================================
+   ESTADO Y UTILIDADES
+============================================================================ */
+const $ = (id) => document.getElementById(id);
+const configOk = SUPABASE_URL.startsWith('https://') && !SUPABASE_URL.includes('TU-PROYECTO')
+  && SUPABASE_ANON_KEY.length > 20 && SUPABASE_ANON_KEY !== 'TU_ANON_KEY';
+
+// Cliente Supabase con sesión solo en memoria (no usa almacenamiento del navegador)
+const memoryStorage = (() => { const m = new Map(); return {
+  getItem: (k) => (m.has(k) ? m.get(k) : null),
+  setItem: (k, v) => { m.set(k, v); },
+  removeItem: (k) => { m.delete(k); }
+};})();
+
+let sb = null;
+if (configOk && window.supabase) {
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession:false, autoRefreshToken:false, detectSessionInUrl:false, storage:memoryStorage }
+  });
+}
+
+let paisActual = null;           // { code, nombre }
+let filas = [];                  // estado de las 54 filas
+let enviando = false;
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g,
+  (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const numOrNull = (v) => {
+  if (v === '' || v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
+function showMsg(title, body, isError = true) {
+  $('msgTitle').textContent = title;
+  $('msgTitle').classList.toggle('err', isError);
+  $('msgBody').innerHTML = body;
+  $('msgOverlay').classList.add('open');
+}
+
+/* ============================================================================
+   VISTA · Selección de país
+============================================================================ */
+function renderCountryCards() {
+  $('countryGrid').innerHTML = PAISES.map((p) => `
+    <button type="button" class="country-card" data-code="${p.code}">
+      <span class="code">${p.code}</span>
+      <span>
+        <div class="t">Marítimos ${p.code}</div>
+        <div class="s">${esc(p.nombre)} · ${ORIGENES.length} rutas de origen</div>
+      </span>
+    </button>`).join('');
+}
+
+function switchView(view) {
+  $('view-select').hidden  = view !== 'select';
+  $('view-form').hidden    = view !== 'form';
+  $('view-success').hidden = view !== 'success';
+  $('actionsBar').hidden   = view !== 'form';
+  window.scrollTo({ top:0 });
+}
+
+/* ============================================================================
+   VISTA · Formulario
+============================================================================ */
+function openForm(code) {
+  paisActual = PAISES.find((p) => p.code === code);
+  if (!paisActual) return;
+  filas = ORIGENES.map(([origen, region]) => ({
+    origen, region, destino: paisActual.nombre,
+    dias_libres_origen:'', dias_libres_destino:'', navieras:'',
+    tiempo_transito:'', puerto_arribo:'',
+    tarifa_20_std:'', tarifa_40_std:'', tarifa_40_hc:''
+  }));
+  $('formTitle').textContent = 'Tarifas Marítimas — ' + paisActual.nombre;
+  $('inpOferente').value = '';
+  $('inpEmail').value = '';
+  ['c_vigencia_del','c_vigencia_al','c_tarifas_incluyen','c_tarifas_no_incluyen',
+   'c_dias_libres_destino','c_herramienta_seguimiento','c_credito_dias','c_observaciones',
+   'g_impresion_bl','g_retiro_vacio','g_demora_contenedor','g_demora_chasis','g_chasis_3_ejes'
+  ].forEach((id) => { $(id).value = ''; });
+  $('fieldOferente').classList.remove('invalid');
+  $('fieldEmail').classList.remove('invalid');
+  renderMatriz();
+  updateProgress();
+  switchView('form');
+}
+
+function renderMatriz() {
+  const tbody = $('matrizBody');
+  tbody.innerHTML = filas.map((f, i) => `
+    <tr>
+      <td class="fix">${esc(f.origen)}</td>
+      <td class="fix"><span class="region">${esc(f.region)}</span></td>
+      <td class="fix">${esc(f.destino)}</td>
+      <td class="num"><input type="number" min="0" step="1" inputmode="numeric"
+        data-i="${i}" data-f="dias_libres_origen" aria-label="Días libres en origen — ${esc(f.origen)}"></td>
+      <td class="num"><input type="number" min="0" step="1" inputmode="numeric"
+        data-i="${i}" data-f="dias_libres_destino" aria-label="Días libres en destino — ${esc(f.origen)}"></td>
+      <td><input type="text" maxlength="300" data-i="${i}" data-f="navieras"
+        aria-label="Navieras — ${esc(f.origen)}"></td>
+      <td><input type="text" maxlength="120" placeholder="p. ej. 28 días" data-i="${i}" data-f="tiempo_transito"
+        aria-label="Tiempo de tránsito — ${esc(f.origen)}"></td>
+      <td><input type="text" maxlength="120" data-i="${i}" data-f="puerto_arribo"
+        aria-label="Puerto de arribo — ${esc(f.origen)}"></td>
+      <td class="num"><input type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"
+        data-i="${i}" data-f="tarifa_20_std" aria-label="Tarifa 20 pies STD en USD — ${esc(f.origen)}"></td>
+      <td class="num"><input type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"
+        data-i="${i}" data-f="tarifa_40_std" aria-label="Tarifa 40 pies STD en USD — ${esc(f.origen)}"></td>
+      <td class="num"><input type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"
+        data-i="${i}" data-f="tarifa_40_hc" aria-label="Tarifa 40 pies HC en USD — ${esc(f.origen)}"></td>
+    </tr>`).join('');
+}
+
+$('matrizBody') && document.addEventListener('input', (ev) => {
+  const t = ev.target;
+  if (!(t instanceof HTMLInputElement)) return;
+  const i = t.dataset.i, f = t.dataset.f;
+  if (i === undefined || !f) return;
+  filas[Number(i)][f] = t.value;
+  if (f.startsWith('tarifa_')) updateProgress();
+});
+
+const filaCotizada = (f) =>
+  [f.tarifa_20_std, f.tarifa_40_std, f.tarifa_40_hc].some((v) => numOrNull(v) !== null && Number(v) > 0);
+
+function updateProgress() {
+  const n = filas.filter(filaCotizada).length;
+  $('progressText').textContent = `${n} / ${ORIGENES.length} rutas cotizadas`;
+}
+
+/* ============================================================================
+   ENVÍO
+============================================================================ */
+function validar() {
+  const oferente = $('inpOferente').value.trim();
+  const email = $('inpEmail').value.trim();
+  let ok = true;
+
+  $('fieldOferente').classList.toggle('invalid', !oferente);
+  if (!oferente) ok = false;
+
+  const emailOk = !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  $('fieldEmail').classList.toggle('invalid', !emailOk);
+  if (!emailOk) ok = false;
+
+  if (!ok) {
+    showMsg('Faltan datos', 'Revisa los campos marcados en rojo en la cabecera del formulario.');
+    return null;
+  }
+  const cotizadas = filas.filter(filaCotizada).length;
+  if (cotizadas === 0) {
+    showMsg('Sin rutas cotizadas',
+      'Ingresa al menos una tarifa (20" STD, 40" STD o 40" HC) en alguna de las rutas antes de enviar.');
+    return null;
+  }
+  return { oferente, email, cotizadas };
+}
+
+function abrirConfirmacion() {
+  const v = validar();
+  if (!v) return;
+  $('sumPais').textContent = `${paisActual.nombre} (${paisActual.code})`;
+  $('sumOferente').textContent = v.oferente;
+  $('sumRutas').textContent = String(v.cotizadas);
+  $('confirmOverlay').classList.add('open');
+}
+
+function construirPayload() {
+  const tarifas = filas
+    .filter((f) => RATE_FIELDS.some((k) => String(f[k]).trim() !== ''))
+    .map((f) => ({
+      origen: f.origen, region: f.region, destino: f.destino,
+      dias_libres_origen:  numOrNull(f.dias_libres_origen),
+      dias_libres_destino: numOrNull(f.dias_libres_destino),
+      navieras:        f.navieras.trim() || null,
+      tiempo_transito: f.tiempo_transito.trim() || null,
+      puerto_arribo:   f.puerto_arribo.trim() || null,
+      tarifa_20_std: numOrNull(f.tarifa_20_std),
+      tarifa_40_std: numOrNull(f.tarifa_40_std),
+      tarifa_40_hc:  numOrNull(f.tarifa_40_hc)
+    }));
+  return {
+    pais: paisActual.code,
+    oferente: $('inpOferente').value.trim(),
+    email_contacto: $('inpEmail').value.trim() || null,
+    vigencia_del: $('c_vigencia_del').value || null,
+    vigencia_al:  $('c_vigencia_al').value  || null,
+    tarifas_incluyen:        $('c_tarifas_incluyen').value.trim() || null,
+    tarifas_no_incluyen:     $('c_tarifas_no_incluyen').value.trim() || null,
+    dias_libres_destino:     $('c_dias_libres_destino').value.trim() || null,
+    herramienta_seguimiento: $('c_herramienta_seguimiento').value.trim() || null,
+    credito_dias:  numOrNull($('c_credito_dias').value),
+    observaciones: $('c_observaciones').value.trim() || null,
+    gasto_impresion_bl:          numOrNull($('g_impresion_bl').value),
+    gasto_retiro_vacio:          numOrNull($('g_retiro_vacio').value),
+    gasto_demora_contenedor_dia: numOrNull($('g_demora_contenedor').value),
+    gasto_demora_chasis_dia:     numOrNull($('g_demora_chasis').value),
+    gasto_chasis_3_ejes:         numOrNull($('g_chasis_3_ejes').value)
+  };
+}
+
+async function enviar() {
+  if (enviando) return;
+  if (!configOk || !sb) {
+    $('confirmOverlay').classList.remove('open');
+    showMsg('Conexión sin configurar',
+      'Este formulario aún no está conectado a Supabase.<br>Edita <code>SUPABASE_URL</code> y <code>SUPABASE_ANON_KEY</code> al inicio del archivo <b>index.html</b>.');
+    return;
+  }
+  enviando = true;
+  const btn = $('btnConfirmSend');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+  try {
+    const { data, error } = await sb.rpc('submit_rfp', { p: construirPayload() });
+    if (error) throw error;
+    $('confirmOverlay').classList.remove('open');
+    $('successFolio').textContent = 'Folio ' + String(data).slice(0, 8).toUpperCase();
+    $('successDetail').textContent =
+      `${$('inpOferente').value.trim()} · ${paisActual.nombre} · ${filas.filter(filaCotizada).length} rutas cotizadas`;
+    switchView('success');
+  } catch (err) {
+    const detalle = (err && err.message) ? esc(err.message) : 'Error de conexión.';
+    showMsg('No se pudo enviar', 'Inténtalo de nuevo en unos segundos.<br><small>' + detalle + '</small>');
+  } finally {
+    enviando = false;
+    btn.disabled = false; btn.textContent = 'Enviar respuesta';
+  }
+}
+
+/* ============================================================================
+   EVENTOS
+============================================================================ */
+document.addEventListener('DOMContentLoaded', () => {
+  renderCountryCards();
+  if (!configOk) $('configNote').style.display = 'block';
+
+  $('countryGrid').addEventListener('click', (ev) => {
+    const card = ev.target.closest('.country-card');
+    if (card) openForm(card.dataset.code);
+  });
+  $('btnBack').addEventListener('click', () => switchView('select'));
+  $('btnCancel').addEventListener('click', () => switchView('select'));
+  $('btnSubmit').addEventListener('click', abrirConfirmacion);
+  $('btnConfirmCancel').addEventListener('click', () => $('confirmOverlay').classList.remove('open'));
+  $('btnConfirmSend').addEventListener('click', enviar);
+  $('btnMsgOk').addEventListener('click', () => $('msgOverlay').classList.remove('open'));
+  $('btnAgain').addEventListener('click', () => switchView('select'));
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') {
+      $('confirmOverlay').classList.remove('open');
+      $('msgOverlay').classList.remove('open');
+    }
+  });
+});
+</script>
+</body>
+</html>

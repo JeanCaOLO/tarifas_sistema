@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel Administrativo · RFP 2026-2027 Tarifas Marítimas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --teal:#00B497; --teal-dark:#007A63; --teal-deep:#055D4D;
+    --mint:#EAF6F4; --mint-soft:#F2FBF9;
+    --ink:#25211F; --muted:#6B7A76; --line:#D7E8E3;
+    --paper:#FFFFFF; --bg:#EFF5F3;
+    --amber-bg:#FFF6E3; --amber:#8A5A00; --amber-line:#F0D9A0;
+    --red:#B3402E; --red-bg:#FBEDEA;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(5,93,77,.06), 0 10px 30px -12px rgba(5,93,77,.18);
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:'Barlow', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-size:14.5px; line-height:1.45;
+  }
+  ::selection{ background:#BDEAE1; }
+  [hidden]{ display:none !important; }
+  .num{ font-variant-numeric:tabular-nums; }
+
+  .btn{
+    font:inherit; font-weight:700; border-radius:8px; cursor:pointer;
+    padding:9px 16px; border:1px solid transparent;
+    transition:background .12s ease, transform .06s ease;
+  }
+  .btn:active{ transform:translateY(1px); }
+  .btn:focus-visible{ outline:3px solid var(--teal); outline-offset:2px; }
+  .btn-primary{ background:var(--teal); color:#fff; }
+  .btn-primary:hover{ background:var(--teal-dark); }
+  .btn-primary[disabled]{ background:#9ED4C9; cursor:default; }
+  .btn-ghost{ background:#fff; color:var(--teal-dark); border-color:var(--line); }
+  .btn-ghost:hover{ background:var(--mint-soft); }
+  .btn-danger{ background:#fff; color:var(--red); border-color:#E9C4BC; }
+  .btn-danger:hover{ background:var(--red-bg); }
+  .btn-sm{ padding:6px 11px; font-size:13px; font-weight:600; }
+
+  /* ---------- Login ---------- */
+  .login-wrap{ min-height:100vh; display:grid; place-items:center; padding:20px; }
+  .login-card{
+    width:100%; max-width:400px; background:var(--paper);
+    border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); overflow:hidden;
+  }
+  .login-card .banner{ background:var(--teal); color:#fff; padding:18px 22px; }
+  .login-card .banner h1{ margin:0; font-size:17px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; }
+  .login-card .banner p{ margin:4px 0 0; font-size:12.5px; opacity:.92; }
+  .login-body{ padding:22px; }
+  .login-body label{ display:block; font-size:12.5px; font-weight:700; color:var(--teal-dark); margin:0 0 5px; }
+  .login-body input{
+    width:100%; padding:10px 12px; font:inherit; border:1px solid var(--line);
+    border-radius:7px; margin-bottom:14px; background:#fff; color:var(--ink);
+  }
+  .login-body input:focus{ outline:2px solid var(--teal); border-color:var(--teal); }
+  .login-err{
+    display:none; margin:0 0 14px; padding:10px 12px; border-radius:7px;
+    background:var(--red-bg); color:var(--red); font-size:13px; border:1px solid #E9C4BC;
+  }
+  .login-note{ margin:14px 0 0; font-size:12px; color:var(--muted); }
+  .config-note{
+    display:none; margin:0 0 14px; padding:10px 12px; border-radius:7px;
+    background:var(--amber-bg); border:1px solid var(--amber-line); color:var(--amber); font-size:12.5px;
+  }
+  .config-note code{ font-family:ui-monospace, Menlo, Consolas, monospace; font-size:11.5px; }
+
+  /* ---------- Topbar ---------- */
+  .topbar{
+    position:sticky; top:0; z-index:30; background:var(--teal-dark); color:#fff;
+    box-shadow:0 2px 10px rgba(5,93,77,.25);
+  }
+  .topbar .inner{
+    max-width:1360px; margin:0 auto; padding:10px 16px;
+    display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  }
+  .brand{ font-weight:800; letter-spacing:.05em; text-transform:uppercase; font-size:14px; }
+  .brand small{ display:block; font-weight:500; letter-spacing:0; text-transform:none; opacity:.85; font-size:11.5px; }
+  .tabs{ display:flex; gap:6px; }
+  .tab{
+    font:inherit; font-weight:700; font-size:13.5px; color:#D6EFEA;
+    background:transparent; border:0; padding:8px 14px; border-radius:7px; cursor:pointer;
+  }
+  .tab:hover{ background:rgba(255,255,255,.12); }
+  .tab.active{ background:#fff; color:var(--teal-deep); }
+  .tab:focus-visible{ outline:2px solid #fff; outline-offset:2px; }
+  .topbar .spacer{ flex:1; }
+  .whoami{ font-size:12.5px; opacity:.9; }
+  .topbar .btn-ghost{ background:transparent; color:#fff; border-color:rgba(255,255,255,.4); }
+  .topbar .btn-ghost:hover{ background:rgba(255,255,255,.12); }
+
+  .page{ max-width:1360px; margin:0 auto; padding:20px 16px 60px; }
+
+  /* ---------- Filtros ---------- */
+  .filters{
+    display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;
+    background:var(--paper); border:1px solid var(--line); border-radius:var(--radius);
+    padding:14px 16px; margin-bottom:16px; box-shadow:var(--shadow);
+  }
+  .filters .f{ display:flex; flex-direction:column; gap:4px; }
+  .filters label{ font-size:11.5px; font-weight:700; color:var(--teal-dark); letter-spacing:.02em; }
+  .filters select, .filters input{
+    font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:7px;
+    background:#fff; color:var(--ink); min-width:140px;
+  }
+  .filters input[type="search"]{ min-width:220px; }
+  .filters select:focus, .filters input:focus{ outline:2px solid var(--teal); border-color:var(--teal); }
+  .filters .spacer{ flex:1; }
+  .count-note{ font-size:12.5px; color:var(--muted); margin:0 0 10px; }
+
+  /* ---------- Tabla de respuestas ---------- */
+  .card{
+    background:var(--paper); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); overflow:hidden;
+  }
+  .table-scroll{ overflow:auto; }
+  table.grid{ border-collapse:separate; border-spacing:0; width:100%; min-width:900px; }
+  .grid th{
+    position:sticky; top:0; background:var(--teal-dark); color:#fff; z-index:2;
+    font-size:12px; font-weight:700; text-align:left; padding:10px 10px; white-space:nowrap;
+  }
+  .grid td{ padding:9px 10px; border-bottom:1px solid #E4F0EC; font-size:13.5px; background:#fff; vertical-align:middle; }
+  .grid tbody tr:nth-child(even) td{ background:var(--mint-soft); }
+  .grid tbody tr:hover td{ background:var(--mint); }
+  .grid .th-num, .grid .td-num{ text-align:right; }
+  .badge{
+    display:inline-block; padding:3px 9px; border-radius:999px; font-size:11.5px; font-weight:700;
+    background:var(--mint); color:var(--teal-deep); border:1px solid var(--line);
+  }
+  .folio{ font-family:ui-monospace, Menlo, Consolas, monospace; font-size:12px; color:var(--muted); }
+  .row-actions{ display:flex; gap:6px; justify-content:flex-end; }
+  .empty{ padding:38px 20px; text-align:center; color:var(--muted); }
+
+  /* ---------- Dashboard ---------- */
+  .kpis{ display:grid; grid-template-columns:repeat(auto-fit, minmax(210px,1fr)); gap:12px; margin-bottom:16px; }
+  .kpi{
+    background:var(--paper); border:1px solid var(--line); border-left:4px solid var(--teal);
+    border-radius:var(--radius); padding:14px 16px; box-shadow:var(--shadow);
+  }
+  .kpi .k-label{ font-size:12px; font-weight:700; color:var(--muted); letter-spacing:.03em; text-transform:uppercase; }
+  .kpi .k-value{ font-size:26px; font-weight:800; color:var(--teal-deep); margin-top:2px; font-variant-numeric:tabular-nums; }
+  .kpi .k-sub{ font-size:12px; color:var(--muted); }
+  .charts{ display:grid; grid-template-columns:repeat(auto-fit, minmax(360px,1fr)); gap:12px; }
+  .chart-card{ background:var(--paper); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px 10px; box-shadow:var(--shadow); }
+  .chart-card h3{ margin:0 0 8px; font-size:13.5px; font-weight:800; color:var(--teal-deep); letter-spacing:.02em; }
+  .chart-card .c-wrap{ position:relative; height:250px; }
+  .section-title{ margin:22px 0 10px; font-size:14px; font-weight:800; color:var(--teal-deep); letter-spacing:.04em; text-transform:uppercase; }
+  .inline-select{ font:inherit; padding:6px 9px; border:1px solid var(--line); border-radius:7px; background:#fff; }
+
+  /* ---------- Modales ---------- */
+  .overlay{
+    position:fixed; inset:0; z-index:60; display:none; padding:18px;
+    background:rgba(20,42,37,.5); align-items:flex-start; justify-content:center; overflow:auto;
+  }
+  .overlay.open{ display:flex; }
+  .modal{
+    background:#fff; border-radius:12px; width:100%; margin:auto;
+    box-shadow:0 24px 60px -20px rgba(5,93,77,.5); overflow:hidden;
+  }
+  .modal.small{ max-width:440px; }
+  .modal.big{ max-width:1150px; }
+  .m-banner{ background:var(--teal); color:#fff; padding:14px 20px; display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  .m-banner h2{ margin:0; font-size:16px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
+  .m-banner .meta{ font-size:12.5px; opacity:.92; }
+  .m-body{ padding:16px 20px; }
+  .m-foot{ display:flex; justify-content:flex-end; gap:10px; padding:14px 20px 18px; border-top:1px solid var(--line); flex-wrap:wrap; }
+  .m-head{ padding:16px 20px 0; font-size:16px; font-weight:800; color:var(--teal-deep); }
+  .m-head.err{ color:var(--red); }
+  .detail-meta{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:8px 18px;
+    background:var(--mint-soft); border:1px solid var(--line); border-radius:8px;
+    padding:12px 14px; margin-bottom:14px; font-size:13px;
+  }
+  .detail-meta b{ color:var(--teal-deep); display:block; font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
+  .detail-scroll{ overflow:auto; max-height:46vh; border:1px solid var(--line); border-radius:8px; }
+  table.mini{ border-collapse:separate; border-spacing:0; width:100%; min-width:980px; }
+  .mini th{ position:sticky; top:0; background:var(--teal-dark); color:#fff; font-size:11.5px; font-weight:700; text-align:left; padding:8px 8px; white-space:pre-line; }
+  .mini td{ padding:7px 8px; border-bottom:1px solid #E4F0EC; font-size:12.8px; background:#fff; white-space:nowrap; }
+  .mini tbody tr:nth-child(even) td{ background:var(--mint-soft); }
+  .mini .td-num{ text-align:right; }
+  .cond-list{ margin-top:14px; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .cond-list .cbar{ background:var(--teal); color:#fff; font-weight:800; font-size:12.5px; letter-spacing:.05em; text-transform:uppercase; padding:8px 12px; }
+  .cond-list .csub{ background:var(--mint); color:var(--teal-dark); font-weight:700; font-size:12.5px; padding:7px 12px; border-top:1px solid var(--line); }
+  .cond-list .crow{ display:grid; grid-template-columns:250px 1fr; border-top:1px solid var(--line); }
+  .cond-list .crow .l{ background:var(--mint); color:var(--teal-dark); font-weight:700; font-size:12.5px; padding:9px 12px; border-right:1px solid var(--line); }
+  .cond-list .crow .v{ padding:9px 12px; font-size:13px; white-space:pre-wrap; }
+  @media (max-width:680px){
+    .cond-list .crow{ grid-template-columns:1fr; }
+    .cond-list .crow .l{ border-right:0; }
+  }
+
+  .loading{ padding:50px 20px; text-align:center; color:var(--muted); }
+  .spin{
+    display:inline-block; width:22px; height:22px; margin-bottom:8px;
+    border:3px solid var(--mint); border-top-color:var(--teal); border-radius:50%;
+    animation:spin .8s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce){
+    *{ transition:none !important; animation:none !important; }
+    .spin{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<div id="view-login" class="login-wrap">
+  <div class="login-card">
+    <div class="banner">
+      <h1>Panel Administrativo</h1>
+      <p>RFP 2026-2027 · Matriz de Tarifas Marítimas</p>
+    </div>
+    <div class="login-body">
+      <div class="config-note" id="configNote">
+        ⚙ <b>Conexión sin configurar.</b> Edita <code>SUPABASE_URL</code> y
+        <code>SUPABASE_ANON_KEY</code> al inicio del <code>&lt;script&gt;</code> de este archivo.
+      </div>
+      <div class="login-err" id="loginErr"></div>
+      <label for="loginEmail">Correo</label>
+      <input id="loginEmail" type="email" autocomplete="username" placeholder="admin@tuempresa.com">
+      <label for="loginPass">Contraseña</label>
+      <input id="loginPass" type="password" autocomplete="current-password" placeholder="••••••••">
+      <button type="button" class="btn btn-primary" id="btnLogin" style="width:100%">Ingresar</button>
+      <p class="login-note">Acceso solo para usuarios autorizados en la lista de administradores.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ================= PANEL ================= -->
+<div id="view-panel" hidden>
+  <div class="topbar">
+    <div class="inner">
+      <div class="brand">Tarifas Marítimas<small>RFP 2026-2027 · Administración</small></div>
+      <nav class="tabs" aria-label="Secciones">
+        <button type="button" class="tab active" id="tabRespuestas">Respuestas</button>
+        <button type="button" class="tab" id="tabDashboard">Dashboard</button>
+      </nav>
+      <span class="spacer"></span>
+      <span class="whoami" id="whoami"></span>
+      <button type="button" class="btn btn-ghost btn-sm" id="btnRefresh">Actualizar</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="btnLogout">Salir</button>
+    </div>
+  </div>
+
+  <div class="page">
+    <div id="loading" class="loading"><span class="spin"></span><br>Cargando respuestas…</div>
+
+    <!-- ===== TAB Respuestas ===== -->
+    <section id="sec-respuestas" hidden>
+      <div class="filters">
+        <div class="f">
+          <label for="fPais">País</label>
+          <select id="fPais">
+            <option value="">Todos</option>
+            <option value="CR">Costa Rica (CR)</option>
+            <option value="SV">El Salvador (SV)</option>
+            <option value="GT">Guatemala (GT)</option>
+            <option value="VNZ">Venezuela (VNZ)</option>
+          </select>
+        </div>
+        <div class="f">
+          <label for="fBuscar">Oferente</label>
+          <input id="fBuscar" type="search" placeholder="Buscar por nombre o correo…">
+        </div>
+        <div class="f">
+          <label for="fDesde">Desde</label>
+          <input id="fDesde" type="date">
+        </div>
+        <div class="f">
+          <label for="fHasta">Hasta</label>
+          <input id="fHasta" type="date">
+        </div>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="btnLimpiar">Limpiar filtros</button>
+        <button type="button" class="btn btn-primary" id="btnExportAll">Exportar Excel (filtrado)</button>
+      </div>
+
+      <p class="count-note" id="countNote"></p>
+
+      <div class="card">
+        <div class="table-scroll">
+          <table class="grid">
+            <thead>
+              <tr>
+                <th>Fecha</th><th>Folio</th><th>País</th><th>Oferente</th><th>Correo</th>
+                <th class="th-num">Rutas cotizadas</th><th style="text-align:right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="respBody"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="respEmpty" hidden>No hay respuestas que coincidan con los filtros.</div>
+      </div>
+    </section>
+
+    <!-- ===== TAB Dashboard ===== -->
+    <section id="sec-dashboard" hidden>
+      <div class="filters">
+        <div class="f">
+          <label for="dPais">País</label>
+          <select id="dPais">
+            <option value="">Todos</option>
+            <option value="CR">Costa Rica (CR)</option>
+            <option value="SV">El Salvador (SV)</option>
+            <option value="GT">Guatemala (GT)</option>
+            <option value="VNZ">Venezuela (VNZ)</option>
+          </select>
+        </div>
+        <span class="spacer"></span>
+        <span class="count-note" id="dashNote" style="margin:0"></span>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi"><div class="k-label">Respuestas recibidas</div><div class="k-value" id="kResp">—</div><div class="k-sub" id="kRespSub"></div></div>
+        <div class="kpi"><div class="k-label">Oferentes únicos</div><div class="k-value" id="kOfer">—</div><div class="k-sub">según filtro de país</div></div>
+        <div class="kpi"><div class="k-label">Cobertura promedio</div><div class="k-value" id="kCob">—</div><div class="k-sub">rutas cotizadas de 54 posibles</div></div>
+        <div class="kpi"><div class="k-label">Tarifa promedio 40" STD</div><div class="k-value" id="kT40">—</div><div class="k-sub">USD · sobre rutas cotizadas</div></div>
+      </div>
+
+      <div class="charts">
+        <div class="chart-card"><h3>Respuestas por país (todas)</h3><div class="c-wrap"><canvas id="chPais"></canvas></div></div>
+        <div class="chart-card"><h3>Tarifa promedio por región (USD)</h3><div class="c-wrap"><canvas id="chRegion"></canvas></div></div>
+        <div class="chart-card"><h3>Navieras más ofertadas</h3><div class="c-wrap"><canvas id="chNavieras"></canvas></div></div>
+        <div class="chart-card"><h3>Rutas cotizadas por oferente (última respuesta)</h3><div class="c-wrap"><canvas id="chCobertura"></canvas></div></div>
+      </div>
+
+      <div class="section-title">Mejor oferta por ruta
+        <select class="inline-select" id="cmpTipo" style="margin-left:10px">
+          <option value="tarifa_20_std">20" STD</option>
+          <option value="tarifa_40_std" selected>40" STD</option>
+          <option value="tarifa_40_hc">40" HC</option>
+        </select>
+      </div>
+      <div class="card">
+        <div class="table-scroll" style="max-height:440px">
+          <table class="grid" id="cmpTable">
+            <thead>
+              <tr id="cmpHead"></tr>
+            </thead>
+            <tbody id="cmpBody"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="cmpEmpty" hidden>Aún no hay tarifas para comparar.</div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- ================= MODAL Detalle ================= -->
+<div class="overlay" id="detailOverlay" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+  <div class="modal big">
+    <div class="m-banner">
+      <h2 id="detailTitle">Detalle de respuesta</h2>
+      <span class="meta" id="detailMeta"></span>
+    </div>
+    <div class="m-body" id="detailBody"></div>
+    <div class="m-foot">
+      <button type="button" class="btn btn-ghost" id="btnDetailClose">Cerrar</button>
+      <button type="button" class="btn btn-primary" id="btnDetailExcel">Descargar Excel (Anexo B)</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL Confirmar eliminación ================= -->
+<div class="overlay" id="delOverlay" role="alertdialog" aria-modal="true" aria-labelledby="delTitle">
+  <div class="modal small">
+    <div class="m-head err" id="delTitle">Eliminar respuesta</div>
+    <div class="m-body" id="delBody"></div>
+    <div class="m-foot">
+      <button type="button" class="btn btn-ghost" id="btnDelCancel">Cancelar</button>
+      <button type="button" class="btn btn-danger" id="btnDelConfirm">Eliminar definitivamente</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL Mensaje ================= -->
+<div class="overlay" id="msgOverlay" role="alertdialog" aria-modal="true" aria-labelledby="msgTitle">
+  <div class="modal small">
+    <div class="m-head err" id="msgTitle">Aviso</div>
+    <div class="m-body" id="msgBody"></div>
+    <div class="m-foot"><button type="button" class="btn btn-primary" id="btnMsgOk">Entendido</button></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================================
+   CONFIGURACIÓN · pega aquí los datos de tu proyecto Supabase
+   (Supabase → Project Settings → API)
+============================================================================ */
+const SUPABASE_URL      = 'https://uxclsvsfjfipmcjmjzqd.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV4Y2xzdnNmamZpcG1jam1qenFkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2Njk0NDEsImV4cCI6MjEwMDI0NTQ0MX0.LF0Eg8bkKZwmf4o3yViVzKTVNsD7QcIhva4edQRbHfI';
+
+/* ============================================================================
+   CATÁLOGO · idéntico al Anexo B (necesario para exportar y medir cobertura)
+============================================================================ */
+const PAISES = { CR:'Costa Rica', SV:'El Salvador', GT:'Guatemala', VNZ:'Venezuela' };
+const TOTAL_RUTAS = 54;
+const ORIGENES = [
+  ['Altamira, México','America'],['Ancona, Italia','Europa'],['Barcelona, España','Europa'],
+  ['Barranquilla, Colombia','America'],['Bilbao, España','Europa'],['Boston, Estados Unidos','America'],
+  ['Bremerhaven, Alemania','Europa'],['Buenaventura, Colombia','America'],['Busan, Corea','Asia'],
+  ['Cabello, Venezuela','America'],['Cartagena, Colombia','America'],['Chiwan, China','Asia'],
+  ['Chongqing, China','Asia'],['Da Nang, Vietnam','Asia'],['Foshan, China','Asia'],
+  ['Fuzhou, China','Asia'],['Gaoming, China','Asia'],['Genoa, Italia','Europa'],
+  ['Guangzhou, China','Asia'],['Haifa, Israel','Europa'],['Hamburgo, Alemania','Europa'],
+  ['Hong Kong, China','Asia'],['Houston, Estados Unidos','America'],['Jiangmen, China','Asia'],
+  ['La Guaira, Venezuela','America'],['La Spezia, Italia','Europa'],['Livorno, Italia','Europa'],
+  ['Manzanillo, México','America'],['Miami, Estados Unidos','America'],['Mundra, India','Asia'],
+  ['Nansha, China','Asia'],['Navengantes, Brasil','America'],['New York, Estados Unidos','America'],
+  ['Ningbo, China','Asia'],['Norfolk, Estados Unidos','America'],['Qingdao, China','Asia'],
+  ['Rotterdam, Países Bajos','Europa'],['Río Grande, Brasil','America'],['San Vicente, Chile','America'],
+  ['Sanshan, China','Asia'],['Sanshui, China','Asia'],['Santos, Brasil','America'],
+  ['Shanghai, China','Asia'],['Shekou, China','Asia'],['Shenzhen, China','Asia'],
+  ['Subic Bay, Filipinas','Asia'],['Tianjin, China','Asia'],['Valencia, España','Europa'],
+  ['Xiamen, China','Asia'],['Xiaolan, China','Asia'],['Xingang, China','Asia'],
+  ['Yantian, China','Asia'],['Zhangjiagang, China','Asia'],['Zhongshan, China','Asia']
+];
+
+/* ============================================================================
+   UTILIDADES Y CLIENTE
+============================================================================ */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g,
+  (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtFecha = (iso) => new Date(iso).toLocaleString('es',
+  { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+const fmtDia = (iso) => iso ? new Date(iso + 'T00:00:00').toLocaleDateString('es') : '___';
+const fmtMoney = (n) => (n === null || n === undefined) ? '—'
+  : Number(n).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
+const folioDe = (id) => String(id).slice(0, 8).toUpperCase();
+const avg = (arr) => arr.length ? arr.reduce((a,b) => a + b, 0) / arr.length : null;
+
+const configOk = SUPABASE_URL.startsWith('https://') && !SUPABASE_URL.includes('TU-PROYECTO')
+  && SUPABASE_ANON_KEY.length > 20 && SUPABASE_ANON_KEY !== 'TU_ANON_KEY';
+
+const memoryStorage = (() => { const m = new Map(); return {
+  getItem: (k) => (m.has(k) ? m.get(k) : null),
+  setItem: (k, v) => { m.set(k, v); },
+  removeItem: (k) => { m.delete(k); }
+};})();
+
+let sb = null;
+if (configOk && window.supabase) {
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession:false, autoRefreshToken:true, detectSessionInUrl:false, storage:memoryStorage }
+  });
+}
+
+function showMsg(title, html, isError = true) {
+  $('msgTitle').textContent = title;
+  $('msgTitle').classList.toggle('err', isError);
+  $('msgBody').innerHTML = html;
+  $('msgOverlay').classList.add('open');
+}
+
+/* ============================================================================
+   ESTADO
+============================================================================ */
+let respuestas = [];                 // v_rfp_respuestas
+let tarifas = [];                    // v_rfp_tarifas
+let tarifasPorFolio = new Map();     // submission_id → [tarifas]
+let detalleActual = null;            // respuesta abierta en el modal
+let pendienteEliminar = null;
+const charts = {};
+
+/* ============================================================================
+   LOGIN / SESIÓN
+============================================================================ */
+async function login() {
+  const err = $('loginErr');
+  err.style.display = 'none';
+  if (!configOk || !sb) {
+    err.textContent = 'La conexión a Supabase no está configurada en este archivo.';
+    err.style.display = 'block';
+    return;
+  }
+  const email = $('loginEmail').value.trim();
+  const pass = $('loginPass').value;
+  if (!email || !pass) {
+    err.textContent = 'Escribe tu correo y contraseña.';
+    err.style.display = 'block';
+    return;
+  }
+  const btn = $('btnLogin');
+  btn.disabled = true; btn.textContent = 'Verificando…';
+  try {
+    const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if (error) throw new Error(
+      /invalid login/i.test(error.message) ? 'Correo o contraseña incorrectos.' : error.message);
+
+    const { data: esAdmin, error: e2 } = await sb.rpc('is_rfp_admin');
+    if (e2) throw e2;
+    if (!esAdmin) {
+      await sb.auth.signOut();
+      throw new Error('Este usuario no está autorizado. Agrega su correo a la tabla rfp_admins en Supabase.');
+    }
+    $('whoami').textContent = email;
+    $('view-login').hidden = true;
+    $('view-panel').hidden = false;
+    await cargarDatos();
+  } catch (e) {
+    err.textContent = e.message || 'No se pudo iniciar sesión.';
+    err.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Ingresar';
+  }
+}
+
+async function logout() {
+  try { if (sb) await sb.auth.signOut(); } catch (_e) { /* sin sesión */ }
+  respuestas = []; tarifas = []; tarifasPorFolio.clear();
+  $('view-panel').hidden = true;
+  $('view-login').hidden = false;
+  $('loginPass').value = '';
+}
+
+/* ============================================================================
+   CARGA DE DATOS (con paginación: Supabase devuelve máx. 1000 filas por página)
+============================================================================ */
+async function fetchAll(vista, orden) {
+  const out = [];
+  const paso = 1000;
+  for (let desde = 0; ; desde += paso) {
+    let q = sb.from(vista).select('*').range(desde, desde + paso - 1);
+    if (orden) q = q.order(orden.col, { ascending: orden.asc });
+    const { data, error } = await q;
+    if (error) throw error;
+    out.push(...(data || []));
+    if (!data || data.length < paso) break;
+  }
+  return out;
+}
+
+async function cargarDatos() {
+  $('loading').hidden = false;
+  $('sec-respuestas').hidden = true;
+  $('sec-dashboard').hidden = true;
+  try {
+    const [subs, rates] = await Promise.all([
+      fetchAll('v_rfp_respuestas', { col:'created_at', asc:false }),
+      fetchAll('v_rfp_tarifas',    { col:'id', asc:true })
+    ]);
+    respuestas = subs;
+    tarifas = rates;
+    tarifasPorFolio = new Map();
+    for (const t of tarifas) {
+      if (!tarifasPorFolio.has(t.submission_id)) tarifasPorFolio.set(t.submission_id, []);
+      tarifasPorFolio.get(t.submission_id).push(t);
+    }
+    $('loading').hidden = true;
+    mostrarTab(tabActiva);
+    renderRespuestas();
+    renderDashboard();
+  } catch (e) {
+    $('loading').hidden = true;
+    showMsg('No se pudieron cargar los datos', esc(e.message || 'Error de conexión.'));
+  }
+}
+
+/* ============================================================================
+   TABS
+============================================================================ */
+let tabActiva = 'respuestas';
+function mostrarTab(cual) {
+  tabActiva = cual;
+  $('tabRespuestas').classList.toggle('active', cual === 'respuestas');
+  $('tabDashboard').classList.toggle('active', cual === 'dashboard');
+  $('sec-respuestas').hidden = cual !== 'respuestas';
+  $('sec-dashboard').hidden = cual !== 'dashboard';
+}
+
+/* ============================================================================
+   TAB · RESPUESTAS
+============================================================================ */
+function respuestasFiltradas() {
+  const pais = $('fPais').value;
+  const q = $('fBuscar').value.trim().toLowerCase();
+  const desde = $('fDesde').value;
+  const hasta = $('fHasta').value;
+  return respuestas.filter((r) => {
+    if (pais && r.pais !== pais) return false;
+    if (q && !(`${r.oferente} ${r.email_contacto || ''}`.toLowerCase().includes(q))) return false;
+    const dia = r.created_at.slice(0, 10);
+    if (desde && dia < desde) return false;
+    if (hasta && dia > hasta) return false;
+    return true;
+  });
+}
+
+function renderRespuestas() {
+  const lista = respuestasFiltradas();
+  $('countNote').textContent =
+    `${lista.length} de ${respuestas.length} respuestas · ${tarifas.length} tarifas registradas en total`;
+  $('respEmpty').hidden = lista.length > 0;
+  $('respBody').innerHTML = lista.map((r) => `
+    <tr>
+      <td style="white-space:nowrap">${fmtFecha(r.created_at)}</td>
+      <td><span class="folio">${folioDe(r.id)}</span></td>
+      <td><span class="badge">${esc(r.pais_nombre)}</span></td>
+      <td style="font-weight:600">${esc(r.oferente)}</td>
+      <td>${esc(r.email_contacto || '—')}</td>
+      <td class="td-num num">${r.rutas_cotizadas} / ${TOTAL_RUTAS}</td>
+      <td>
+        <div class="row-actions">
+          <button type="button" class="btn btn-ghost btn-sm" data-a="ver" data-id="${r.id}">Ver</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-a="excel" data-id="${r.id}">Excel</button>
+          <button type="button" class="btn btn-danger btn-sm" data-a="del" data-id="${r.id}">Eliminar</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+/* ---------- Detalle ---------- */
+const CONDICIONES = [
+  ['Vigencia',                    (r) => `Del ${fmtDia(r.vigencia_del)} al ${fmtDia(r.vigencia_al)}`],
+  ['Las tarifas incluyen',        (r) => r.tarifas_incluyen],
+  ['Las tarifas NO incluyen',     (r) => r.tarifas_no_incluyen],
+  ['Días libres en destino',      (r) => r.dias_libres_destino],
+  ['Herramienta para seguimiento',(r) => r.herramienta_seguimiento],
+  ['Credito (días)',              (r) => r.credito_dias],
+  ['Observaciones',               (r) => r.observaciones]
+];
+const GASTOS = [
+  ['Impresión de BL',            'gasto_impresion_bl'],
+  ['Retiro de vacío',            'gasto_retiro_vacio'],
+  ['Demoras contenedor por día', 'gasto_demora_contenedor_dia'],
+  ['Demoras chasis por día',     'gasto_demora_chasis_dia'],
+  ['Chasis 3 ejes',              'gasto_chasis_3_ejes']
+];
+
+function abrirDetalle(id) {
+  const r = respuestas.find((x) => x.id === id);
+  if (!r) return;
+  detalleActual = r;
+  const rutas = (tarifasPorFolio.get(id) || []).slice()
+    .sort((a, b) => a.origen.localeCompare(b.origen, 'es'));
+
+  $('detailTitle').textContent = 'Tarifas Marítimas — ' + r.pais_nombre;
+  $('detailMeta').textContent =
+    `${r.oferente} · Folio ${folioDe(r.id)} · ${fmtFecha(r.created_at)}`;
+
+  const filasHtml = rutas.map((t) => `
+    <tr>
+      <td style="font-weight:600">${esc(t.origen)}</td>
+      <td>${esc(t.region)}</td>
+      <td>${esc(t.destino)}</td>
+      <td class="td-num num">${t.dias_libres_origen ?? '—'}</td>
+      <td class="td-num num">${t.dias_libres_destino ?? '—'}</td>
+      <td>${esc(t.navieras || '—')}</td>
+      <td>${esc(t.tiempo_transito || '—')}</td>
+      <td>${esc(t.puerto_arribo || '—')}</td>
+      <td class="td-num num">${fmtMoney(t.tarifa_20_std)}</td>
+      <td class="td-num num">${fmtMoney(t.tarifa_40_std)}</td>
+      <td class="td-num num">${fmtMoney(t.tarifa_40_hc)}</td>
+    </tr>`).join('');
+
+  const condHtml = CONDICIONES.map(([lbl, fn]) => `
+    <div class="crow"><div class="l">${lbl}</div><div class="v">${esc(fn(r) ?? '') || '—'}</div></div>`).join('');
+  const gastosHtml = GASTOS.map(([lbl, campo]) => `
+    <div class="crow"><div class="l">${lbl}</div>
+      <div class="v num">${r[campo] === null ? '—' : 'USD ' + fmtMoney(r[campo])}</div></div>`).join('');
+
+  $('detailBody').innerHTML = `
+    <div class="detail-meta">
+      <div><b>Oferente</b>${esc(r.oferente)}</div>
+      <div><b>País</b>${esc(r.pais_nombre)} (${esc(r.pais)})</div>
+      <div><b>Correo</b>${esc(r.email_contacto || '—')}</div>
+      <div><b>Rutas cotizadas</b>${r.rutas_cotizadas} / ${TOTAL_RUTAS}</div>
+    </div>
+    <div class="detail-scroll">
+      <table class="mini">
+        <thead><tr>
+          <th>Origen</th><th>Región</th><th>Destino</th>
+          <th>Días Libres
+en Origen</th><th>Días Libres
+en Destino</th>
+          <th>Naviera(s)</th><th>Tiempo de tránsito</th><th>Puerto de Arribo</th>
+          <th>20" STD</th><th>40" STD</th><th>40" HC</th>
+        </tr></thead>
+        <tbody>${filasHtml || '<tr><td colspan="11" style="text-align:center;color:var(--muted)">Sin rutas registradas</td></tr>'}</tbody>
+      </table>
+    </div>
+    <div class="cond-list">
+      <div class="cbar">Condiciones Comerciales</div>
+      ${condHtml}
+      <div class="csub">Gastos en destino</div>
+      ${gastosHtml}
+    </div>`;
+  $('detailOverlay').classList.add('open');
+}
+
+/* ---------- Eliminar ---------- */
+function pedirEliminar(id) {
+  const r = respuestas.find((x) => x.id === id);
+  if (!r) return;
+  pendienteEliminar = r;
+  $('delBody').innerHTML =
+    `Se eliminará la respuesta de <b>${esc(r.oferente)}</b> (${esc(r.pais_nombre)}, folio ${folioDe(r.id)}) ` +
+    `junto con sus ${r.rutas_cotizadas} rutas cotizadas. Esta acción no se puede deshacer.`;
+  $('delOverlay').classList.add('open');
+}
+
+async function confirmarEliminar() {
+  if (!pendienteEliminar || !sb) return;
+  const btn = $('btnDelConfirm');
+  btn.disabled = true; btn.textContent = 'Eliminando…';
+  try {
+    const { error } = await sb.from('rfp_submissions').delete().eq('id', pendienteEliminar.id);
+    if (error) throw error;
+    respuestas = respuestas.filter((r) => r.id !== pendienteEliminar.id);
+    tarifas = tarifas.filter((t) => t.submission_id !== pendienteEliminar.id);
+    tarifasPorFolio.delete(pendienteEliminar.id);
+    pendienteEliminar = null;
+    $('delOverlay').classList.remove('open');
+    renderRespuestas();
+    renderDashboard();
+  } catch (e) {
+    showMsg('No se pudo eliminar', esc(e.message || 'Error de conexión.'));
+  } finally {
+    btn.disabled = false; btn.textContent = 'Eliminar definitivamente';
+  }
+}
+
+/* ============================================================================
+   EXPORTACIONES EXCEL
+============================================================================ */
+function requiereXLSX() {
+  if (!window.XLSX) {
+    showMsg('Exportación no disponible', 'No se pudo cargar la librería de Excel. Revisa tu conexión a internet y recarga la página.');
+    return false;
+  }
+  return true;
+}
+const nombreArchivo = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'oferente';
+
+/* --- Exportación consolidada (respeta filtros) --- */
+function exportarConsolidado() {
+  if (!requiereXLSX()) return;
+  const lista = respuestasFiltradas();
+  if (!lista.length) { showMsg('Nada que exportar', 'No hay respuestas con los filtros actuales.', false); return; }
+
+  const hojaResp = [[
+    'Folio','Fecha','País','Oferente','Correo','Rutas cotizadas',
+    'Vigencia del','Vigencia al','Las tarifas incluyen','Las tarifas NO incluyen',
+    'Días libres en destino','Herramienta para seguimiento','Credito (días)','Observaciones',
+    'Impresión de BL (USD)','Retiro de vacío (USD)','Demoras contenedor por día (USD)',
+    'Demoras chasis por día (USD)','Chasis 3 ejes (USD)'
+  ]];
+  for (const r of lista) {
+    hojaResp.push([
+      folioDe(r.id), fmtFecha(r.created_at), r.pais_nombre, r.oferente, r.email_contacto || '',
+      r.rutas_cotizadas, r.vigencia_del || '', r.vigencia_al || '',
+      r.tarifas_incluyen || '', r.tarifas_no_incluyen || '', r.dias_libres_destino || '',
+      r.herramienta_seguimiento || '', r.credito_dias ?? '', r.observaciones || '',
+      r.gasto_impresion_bl ?? '', r.gasto_retiro_vacio ?? '', r.gasto_demora_contenedor_dia ?? '',
+      r.gasto_demora_chasis_dia ?? '', r.gasto_chasis_3_ejes ?? ''
+    ]);
+  }
+
+  const ids = new Set(lista.map((r) => r.id));
+  const hojaTar = [[
+    'Folio','Fecha','País','Oferente','Origen','Región','Destino',
+    'Días libres en origen','Días libres en destino','Naviera(s)','Tiempo de tránsito',
+    'Puerto de Arribo','20" STD (USD)','40" STD (USD)','40" HC (USD)'
+  ]];
+  for (const t of tarifas) {
+    if (!ids.has(t.submission_id)) continue;
+    hojaTar.push([
+      folioDe(t.submission_id), fmtFecha(t.fecha_envio), t.pais_nombre, t.oferente,
+      t.origen, t.region, t.destino,
+      t.dias_libres_origen ?? '', t.dias_libres_destino ?? '',
+      t.navieras || '', t.tiempo_transito || '', t.puerto_arribo || '',
+      t.tarifa_20_std ?? '', t.tarifa_40_std ?? '', t.tarifa_40_hc ?? ''
+    ]);
+  }
+
+  const wb = XLSX.utils.book_new();
+  const ws1 = XLSX.utils.aoa_to_sheet(hojaResp);
+  ws1['!cols'] = [ {wch:10},{wch:17},{wch:12},{wch:26},{wch:24},{wch:9},{wch:11},{wch:11},
+    {wch:34},{wch:34},{wch:20},{wch:22},{wch:11},{wch:34},{wch:14},{wch:14},{wch:18},{wch:16},{wch:12} ];
+  const ws2 = XLSX.utils.aoa_to_sheet(hojaTar);
+  ws2['!cols'] = [ {wch:10},{wch:17},{wch:12},{wch:24},{wch:26},{wch:10},{wch:13},
+    {wch:10},{wch:10},{wch:18},{wch:15},{wch:20},{wch:11},{wch:11},{wch:11} ];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Respuestas');
+  XLSX.utils.book_append_sheet(wb, ws2, 'Tarifas');
+  const hoy = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  XLSX.writeFile(wb, `RFP2026_Respuestas_${hoy}.xlsx`);
+}
+
+/* --- Exportación individual con el formato del Anexo B --- */
+function exportarAnexo(id) {
+  if (!requiereXLSX()) return;
+  const r = respuestas.find((x) => x.id === id);
+  if (!r) return;
+  const porOrigen = new Map((tarifasPorFolio.get(id) || []).map((t) => [t.origen, t]));
+
+  const aoa = [];
+  aoa.push(['          TARIFAS MARÍTIMAS — ' + r.pais_nombre.toUpperCase()]);   // fila 1
+  aoa.push(['Request For Proposal 2026-2027']);                                 // fila 2
+  aoa.push(['Oferente:', '', r.oferente]);                                      // fila 3
+  aoa.push([]);                                                                 // fila 4
+  aoa.push(['Origen','Región','Destino','Días Libres\nen Origen','Días Libres\nen Destino',
+            'Naviera(s)','Tiempo de tránsito','Puerto de Arribo','20" STD','40" STD','40" HC']); // fila 5
+  for (const [origen, region] of ORIGENES) {                                    // filas 6-59
+    const t = porOrigen.get(origen);
+    aoa.push([
+      origen, region, r.pais_nombre,
+      t ? (t.dias_libres_origen ?? '') : '',
+      t ? (t.dias_libres_destino ?? '') : '',
+      t ? (t.navieras || '') : '',
+      t ? (t.tiempo_transito || '') : '',
+      t ? (t.puerto_arribo || '') : '',
+      t ? (t.tarifa_20_std ?? '') : '',
+      t ? (t.tarifa_40_std ?? '') : '',
+      t ? (t.tarifa_40_hc ?? '') : ''
+    ]);
+  }
+  aoa.push([]);                                                                 // fila 60
+  aoa.push(['CONDICIONES COMERCIALES']);                                        // fila 61
+  const vig = (r.vigencia_del || r.vigencia_al)
+    ? `Del ${fmtDia(r.vigencia_del)} al ${fmtDia(r.vigencia_al)}` : 'Del ___ al ___';
+  aoa.push(['Vigencia','', vig]);                                               // fila 62
+  aoa.push(['Las tarifas incluyen','', r.tarifas_incluyen || '']);
+  aoa.push(['Las tarifas NO incluyen','', r.tarifas_no_incluyen || '']);
+  aoa.push(['Días libres en destino','', r.dias_libres_destino || '']);
+  aoa.push(['Herramienta para seguimiento','', r.herramienta_seguimiento || '']);
+  aoa.push(['Credito (días)','', r.credito_dias ?? '']);
+  aoa.push(['Observaciones','', r.observaciones || '']);                        // fila 68
+  aoa.push(['Gastos en destino']);                                              // fila 69
+  aoa.push(['Impresión de BL','', r.gasto_impresion_bl ?? '']);
+  aoa.push(['Retiro de vacío','', r.gasto_retiro_vacio ?? '']);
+  aoa.push(['Demoras contenedor por día','', r.gasto_demora_contenedor_dia ?? '']);
+  aoa.push(['Demoras chasis por día','', r.gasto_demora_chasis_dia ?? '']);
+  aoa.push(['Chasis 3 ejes','', r.gasto_chasis_3_ejes ?? '']);                  // fila 74
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [ {wch:26},{wch:11},{wch:14},{wch:12},{wch:12},{wch:18},{wch:16},{wch:22},{wch:10},{wch:10},{wch:10} ];
+  const M = (r1,c1,r2,c2) => ({ s:{ r:r1, c:c1 }, e:{ r:r2, c:c2 } });
+  const merges = [ M(0,0,0,10), M(1,0,1,10), M(2,0,2,1), M(2,2,2,10), M(60,0,60,10), M(68,0,68,10) ];
+  for (const fila of [61,62,63,64,65,66,67,69,70,71,72,73]) {
+    merges.push(M(fila,0,fila,1), M(fila,2,fila,10));
+  }
+  ws['!merges'] = merges;
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'MARITIMOS ' + r.pais);
+  XLSX.writeFile(wb, `AnexoB_${r.pais}_${nombreArchivo(r.oferente)}_${folioDe(r.id)}.xlsx`);
+}
+
+/* ============================================================================
+   TAB · DASHBOARD
+============================================================================ */
+const COLORES = ['#007A63','#00B497','#66D4C2','#F2B33D','#E2725B','#4C6A64','#9AC7BE','#C9A227'];
+
+function pintarChart(id, config) {
+  if (!window.Chart) return;
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart($(id).getContext('2d'), config);
+}
+
+function renderDashboard() {
+  const pais = $('dPais').value;
+  const subs = pais ? respuestas.filter((r) => r.pais === pais) : respuestas;
+  const rates = pais ? tarifas.filter((t) => t.pais === pais) : tarifas;
+  $('dashNote').textContent = pais
+    ? `Mostrando ${PAISES[pais]} · ${subs.length} respuestas`
+    : `Mostrando los 4 países · ${subs.length} respuestas`;
+
+  /* ---- KPIs ---- */
+  $('kResp').textContent = subs.length;
+  $('kRespSub').textContent = `${rates.length} tarifas registradas`;
+  $('kOfer').textContent = new Set(subs.map((r) => r.oferente.trim().toLowerCase())).size;
+  const cob = avg(subs.map((r) => r.rutas_cotizadas / TOTAL_RUTAS * 100));
+  $('kCob').textContent = cob === null ? '—' : cob.toFixed(0) + '%';
+  const t40 = avg(rates.map((t) => t.tarifa_40_std).filter((v) => v !== null).map(Number));
+  $('kT40').textContent = t40 === null ? '—' : '$' + fmtMoney(t40);
+
+  if (!window.Chart) return;
+  const ejesUSD = { y: { ticks: { callback: (v) => '$' + v } } };
+
+  /* ---- 1 · Respuestas por país (siempre global) ---- */
+  const codigos = Object.keys(PAISES);
+  pintarChart('chPais', {
+    type: 'bar',
+    data: {
+      labels: codigos.map((c) => PAISES[c]),
+      datasets: [{ label:'Respuestas', data: codigos.map((c) => respuestas.filter((r) => r.pais === c).length),
+        backgroundColor: COLORES[1], borderRadius: 6 }]
+    },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{ y:{ beginAtZero:true, ticks:{ precision:0 } } } }
+  });
+
+  /* ---- 2 · Tarifa promedio por región ---- */
+  const regiones = ['America','Asia','Europa'];
+  const promRegion = (reg, campo) => {
+    const vals = rates.filter((t) => t.region === reg && t[campo] !== null).map((t) => Number(t[campo]));
+    const a = avg(vals);
+    return a === null ? null : Math.round(a * 100) / 100;
+  };
+  pintarChart('chRegion', {
+    type: 'bar',
+    data: {
+      labels: regiones,
+      datasets: [
+        { label:'20" STD', data: regiones.map((x) => promRegion(x,'tarifa_20_std')), backgroundColor: COLORES[0], borderRadius:5 },
+        { label:'40" STD', data: regiones.map((x) => promRegion(x,'tarifa_40_std')), backgroundColor: COLORES[1], borderRadius:5 },
+        { label:'40" HC',  data: regiones.map((x) => promRegion(x,'tarifa_40_hc')),  backgroundColor: COLORES[3], borderRadius:5 }
+      ]
+    },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:'bottom' } }, scales: ejesUSD }
+  });
+
+  /* ---- 3 · Navieras más ofertadas ---- */
+  const conteo = new Map();  // clave normalizada → { nombre, n }
+  for (const t of rates) {
+    if (!t.navieras) continue;
+    for (const parte of String(t.navieras).split(/[,;\/]+/)) {
+      const nombre = parte.trim();
+      if (nombre.length < 2) continue;
+      const clave = nombre.toLowerCase();
+      const item = conteo.get(clave) || { nombre, n:0 };
+      item.n += 1;
+      conteo.set(clave, item);
+    }
+  }
+  const topNav = [...conteo.values()].sort((a,b) => b.n - a.n).slice(0, 8);
+  pintarChart('chNavieras', {
+    type: 'bar',
+    data: {
+      labels: topNav.map((x) => x.nombre),
+      datasets: [{ label:'Rutas donde se ofertó', data: topNav.map((x) => x.n),
+        backgroundColor: COLORES[0], borderRadius:5 }]
+    },
+    options: { indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{ x:{ beginAtZero:true, ticks:{ precision:0 } } } }
+  });
+
+  /* ---- 4 · Rutas cotizadas por oferente (última respuesta) ---- */
+  const ultimaPorOferente = new Map();
+  for (const r of subs) {
+    const clave = r.oferente.trim().toLowerCase();
+    const prev = ultimaPorOferente.get(clave);
+    if (!prev || r.created_at > prev.created_at) ultimaPorOferente.set(clave, r);
+  }
+  const topOfer = [...ultimaPorOferente.values()]
+    .sort((a,b) => b.rutas_cotizadas - a.rutas_cotizadas).slice(0, 10);
+  pintarChart('chCobertura', {
+    type: 'bar',
+    data: {
+      labels: topOfer.map((r) => r.oferente),
+      datasets: [{ label:'Rutas cotizadas', data: topOfer.map((r) => r.rutas_cotizadas),
+        backgroundColor: COLORES[1], borderRadius:5 }]
+    },
+    options: { indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{ x:{ beginAtZero:true, max:TOTAL_RUTAS, ticks:{ precision:0 } } } }
+  });
+
+  renderComparativo();
+}
+
+/* ---- Mejor oferta por ruta ---- */
+function renderComparativo() {
+  const pais = $('dPais').value;
+  const campo = $('cmpTipo').value;
+  const rates = (pais ? tarifas.filter((t) => t.pais === pais) : tarifas)
+    .filter((t) => t[campo] !== null);
+
+  const conPais = !pais;
+  $('cmpHead').innerHTML =
+    (conPais ? '<th>País</th>' : '') +
+    '<th>Origen</th><th>Región</th><th class="th-num">Mejor tarifa (USD)</th><th>Oferente</th><th class="th-num">Nº de ofertas</th>';
+
+  const grupos = new Map();
+  for (const t of rates) {
+    const clave = (conPais ? t.pais + '|' : '') + t.origen;
+    if (!grupos.has(clave)) grupos.set(clave, []);
+    grupos.get(clave).push(t);
+  }
+  const filas = [...grupos.entries()].map(([clave, arr]) => {
+    const min = Math.min(...arr.map((t) => Number(t[campo])));
+    const ganadores = [...new Set(arr.filter((t) => Number(t[campo]) === min).map((t) => t.oferente))];
+    return {
+      pais: arr[0].pais_nombre, origen: arr[0].origen, region: arr[0].region,
+      min, oferente: ganadores.slice(0, 2).join(' / ') + (ganadores.length > 2 ? ' …' : ''),
+      n: arr.length
+    };
+  }).sort((a,b) => (a.pais + a.origen).localeCompare(b.pais + b.origen, 'es'));
+
+  $('cmpEmpty').hidden = filas.length > 0;
+  $('cmpBody').innerHTML = filas.map((f) => `
+    <tr>
+      ${conPais ? `<td><span class="badge">${esc(f.pais)}</span></td>` : ''}
+      <td style="font-weight:600">${esc(f.origen)}</td>
+      <td>${esc(f.region)}</td>
+      <td class="td-num num" style="font-weight:700;color:var(--teal-deep)">$${fmtMoney(f.min)}</td>
+      <td>${esc(f.oferente)}</td>
+      <td class="td-num num">${f.n}</td>
+    </tr>`).join('');
+}
+
+/* ============================================================================
+   EVENTOS
+============================================================================ */
+document.addEventListener('DOMContentLoaded', () => {
+  if (!configOk) $('configNote').style.display = 'block';
+
+  $('btnLogin').addEventListener('click', login);
+  $('loginPass').addEventListener('keydown', (e) => { if (e.key === 'Enter') login(); });
+  $('loginEmail').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('loginPass').focus(); });
+  $('btnLogout').addEventListener('click', logout);
+  $('btnRefresh').addEventListener('click', cargarDatos);
+
+  $('tabRespuestas').addEventListener('click', () => mostrarTab('respuestas'));
+  $('tabDashboard').addEventListener('click', () => mostrarTab('dashboard'));
+
+  ['fPais','fDesde','fHasta'].forEach((id) => $(id).addEventListener('change', renderRespuestas));
+  $('fBuscar').addEventListener('input', renderRespuestas);
+  $('btnLimpiar').addEventListener('click', () => {
+    ['fPais','fBuscar','fDesde','fHasta'].forEach((id) => { $(id).value = ''; });
+    renderRespuestas();
+  });
+  $('btnExportAll').addEventListener('click', exportarConsolidado);
+
+  $('respBody').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('button[data-a]');
+    if (!btn) return;
+    if (btn.dataset.a === 'ver') abrirDetalle(btn.dataset.id);
+    if (btn.dataset.a === 'excel') exportarAnexo(btn.dataset.id);
+    if (btn.dataset.a === 'del') pedirEliminar(btn.dataset.id);
+  });
+
+  $('btnDetailClose').addEventListener('click', () => $('detailOverlay').classList.remove('open'));
+  $('btnDetailExcel').addEventListener('click', () => { if (detalleActual) exportarAnexo(detalleActual.id); });
+  $('btnDelCancel').addEventListener('click', () => $('delOverlay').classList.remove('open'));
+  $('btnDelConfirm').addEventListener('click', confirmarEliminar);
+  $('btnMsgOk').addEventListener('click', () => $('msgOverlay').classList.remove('open'));
+
+  $('dPais').addEventListener('change', renderDashboard);
+  $('cmpTipo').addEventListener('change', renderComparativo);
+
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') {
+      ['detailOverlay','delOverlay','msgOverlay'].forEach((id) => $(id).classList.remove('open'));
+    }
+  });
+
+  if (sb) {
+    sb.auth.onAuthStateChange((evento) => {
+      if (evento === 'SIGNED_OUT') {
+        $('view-panel').hidden = true;
+        $('view-login').hidden = false;
+      }
+    });
+  }
+});
+</script>
+</body>
+</html>
