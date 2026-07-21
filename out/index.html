@@ -46,6 +46,19 @@
     margin:0; font-size:clamp(19px, 2.6vw, 27px); font-weight:800;
     letter-spacing:.06em; text-transform:uppercase;
   }
+  .banner.with-admin{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:14px; flex-wrap:wrap;
+  }
+  .btn-admin{
+    flex:none; display:inline-block; text-decoration:none;
+    font:inherit; font-size:13px; font-weight:700; letter-spacing:.03em;
+    color:#fff; background:rgba(255,255,255,.14);
+    border:1px solid rgba(255,255,255,.55); border-radius:8px;
+    padding:8px 16px; transition:background .12s ease;
+  }
+  .btn-admin:hover{ background:rgba(255,255,255,.26); }
+  .btn-admin:focus-visible{ outline:3px solid #fff; outline-offset:2px; }
   .subbar{
     background:var(--mint); color:var(--teal-dark);
     padding:9px 28px; font-size:13px; font-weight:600;
@@ -281,7 +294,10 @@
 
   <!-- ================= VISTA 1 · Selección de país ================= -->
   <section id="view-select" class="doc" aria-label="Selección de formulario">
-    <div class="banner"><h1>Matriz de Tarifas Marítimas</h1></div>
+    <div class="banner with-admin">
+      <h1>Matriz de Tarifas Marítimas</h1>
+      <a class="btn-admin" href="admin.html" title="Ir al panel administrativo">Admin</a>
+    </div>
     <div class="subbar"><span>Request For Proposal 2026-2027</span><span class="anexo">Anexo B</span></div>
     <div class="intro">
       <h2>Selecciona el formulario que vas a completar</h2>
@@ -682,7 +698,8 @@ function construirPayload() {
     gasto_retiro_vacio:          numOrNull($('g_retiro_vacio').value),
     gasto_demora_contenedor_dia: numOrNull($('g_demora_contenedor').value),
     gasto_demora_chasis_dia:     numOrNull($('g_demora_chasis').value),
-    gasto_chasis_3_ejes:         numOrNull($('g_chasis_3_ejes').value)
+    gasto_chasis_3_ejes:         numOrNull($('g_chasis_3_ejes').value),
+    tarifas: tarifas
   };
 }
 
