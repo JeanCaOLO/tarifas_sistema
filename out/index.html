@@ -329,12 +329,18 @@
           <div class="hint">Revisa el formato del correo (ej. nombre@empresa.com).</div>
         </div>
         <div class="field" id="fieldRegion">
-          <label for="inpRegion">Región <span aria-hidden="true">*</span></label>
-          <select id="inpRegion" multiple style="width:100%; padding:9px 11px; font:inherit; color:var(--ink); border:1px solid var(--line); border-radius:7px; background:#fff; min-height:62px;">
-            <option value="CA">CA</option>
-            <option value="VE">VE</option>
-          </select>
-          <div class="hint">Selecciona al menos una región (mantén Ctrl para selección múltiple).</div>
+          <label>Región <span aria-hidden="true">*</span></label>
+          <div class="checkbox-group" style="display:flex; gap:16px; padding:9px 0;">
+            <label class="cb-label" style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-weight:500;">
+              <input type="checkbox" id="chkCA" value="CA" style="width:18px; height:18px; accent-color:var(--teal); cursor:pointer;">
+              CA
+            </label>
+            <label class="cb-label" style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-weight:500;">
+              <input type="checkbox" id="chkVE" value="VE" style="width:18px; height:18px; accent-color:var(--teal); cursor:pointer;">
+              VE
+            </label>
+          </div>
+          <div class="hint">Selecciona al menos una región.</div>
         </div>
       </div>
 
@@ -589,7 +595,8 @@ function openForm(code) {
   $('formTitle').textContent = 'Tarifas Marítimas — ' + paisActual.nombre;
   $('inpOferente').value = '';
   $('inpEmail').value = '';
-  Array.from($('inpRegion').options).forEach(o => o.selected = false);
+  $('chkCA').checked = false;
+  $('chkVE').checked = false;
   ['c_vigencia_del','c_vigencia_al','c_tarifas_incluyen','c_tarifas_no_incluyen',
    'c_dias_libres_destino','c_herramienta_seguimiento','c_credito_dias','c_observaciones',
    'g_impresion_bl','g_retiro_vacio','g_demora_contenedor','g_demora_chasis','g_chasis_3_ejes'
@@ -651,7 +658,7 @@ function updateProgress() {
 function validar() {
   const oferente = $('inpOferente').value.trim();
   const email = $('inpEmail').value.trim();
-  const regionSel = Array.from($('inpRegion').selectedOptions).map(o => o.value);
+  const regionSel = ['CA','VE'].filter(r => $(r === 'CA' ? 'chkCA' : 'chkVE').checked);
   let ok = true;
 
   $('fieldOferente').classList.toggle('invalid', !oferente);
@@ -680,7 +687,7 @@ function validar() {
 function abrirConfirmacion() {
   const v = validar();
   if (!v) return;
-  const regionSel = Array.from($('inpRegion').selectedOptions).map(o => o.value);
+  const regionSel = ['CA','VE'].filter(r => $(r === 'CA' ? 'chkCA' : 'chkVE').checked);
   $('sumPais').textContent = `${paisActual.nombre} (${paisActual.code})`;
   $('sumOferente').textContent = v.oferente;
   $('sumRutas').textContent = String(v.cotizadas);
@@ -702,7 +709,7 @@ function construirPayload() {
       tarifa_40_std: numOrNull(f.tarifa_40_std),
       tarifa_40_hc:  numOrNull(f.tarifa_40_hc)
     }));
-  const regionSel = Array.from($('inpRegion').selectedOptions).map(o => o.value);
+  const regionSel = ['CA','VE'].filter(r => $(r === 'CA' ? 'chkCA' : 'chkVE').checked);
   return {
     pais: paisActual.code,
     oferente: $('inpOferente').value.trim(),
