@@ -386,8 +386,6 @@ en Destino</th>
           <div class="val"><textarea id="c_tarifas_incluyen" maxlength="2000" rows="2"></textarea></div></div>
         <div class="cond-row"><div class="lbl">Las tarifas NO incluyen</div>
           <div class="val"><textarea id="c_tarifas_no_incluyen" maxlength="2000" rows="2"></textarea></div></div>
-        <div class="cond-row"><div class="lbl">Días libres en destino</div>
-          <div class="val"><input type="text" id="c_dias_libres_destino" maxlength="300"></div></div>
         <div class="cond-row"><div class="lbl">Herramienta para seguimiento</div>
           <div class="val"><input type="text" id="c_herramienta_seguimiento" maxlength="300"></div></div>
         <div class="cond-row"><div class="lbl">Credito (días)</div>
@@ -408,6 +406,8 @@ en Destino</th>
           <div class="val"><div class="money"><span class="cur">USD</span><input type="number" id="g_demora_chasis" min="0" step="0.01" inputmode="decimal"></div></div></div>
         <div class="cond-row"><div class="lbl">Chasis 3 ejes</div>
           <div class="val"><div class="money"><span class="cur">USD</span><input type="number" id="g_chasis_3_ejes" min="0" step="0.01" inputmode="decimal"></div></div></div>
+        <div class="cond-row"><div class="lbl">Estadias</div>
+          <div class="val"><div class="money"><span class="cur">USD</span><input type="number" id="g_estadias" min="0" step="0.01" inputmode="decimal"></div></div></div>
       </div>
     </div>
   </section>
@@ -598,8 +598,8 @@ function openForm(code) {
   $('chkCA').checked = false;
   $('chkVE').checked = false;
   ['c_vigencia_del','c_vigencia_al','c_tarifas_incluyen','c_tarifas_no_incluyen',
-   'c_dias_libres_destino','c_herramienta_seguimiento','c_credito_dias','c_observaciones',
-   'g_impresion_bl','g_retiro_vacio','g_demora_contenedor','g_demora_chasis','g_chasis_3_ejes'
+   'c_herramienta_seguimiento','c_credito_dias','c_observaciones',
+   'g_impresion_bl','g_retiro_vacio','g_demora_contenedor','g_demora_chasis','g_chasis_3_ejes','g_estadias'
   ].forEach((id) => { $(id).value = ''; });
   $('fieldOferente').classList.remove('invalid');
   $('fieldEmail').classList.remove('invalid');
@@ -719,7 +719,6 @@ function construirPayload() {
     vigencia_al:  $('c_vigencia_al').value  || null,
     tarifas_incluyen:        $('c_tarifas_incluyen').value.trim() || null,
     tarifas_no_incluyen:     $('c_tarifas_no_incluyen').value.trim() || null,
-    dias_libres_destino:     $('c_dias_libres_destino').value.trim() || null,
     herramienta_seguimiento: $('c_herramienta_seguimiento').value.trim() || null,
     credito_dias:  numOrNull($('c_credito_dias').value),
     observaciones: $('c_observaciones').value.trim() || null,
@@ -728,6 +727,7 @@ function construirPayload() {
     gasto_demora_contenedor_dia: numOrNull($('g_demora_contenedor').value),
     gasto_demora_chasis_dia:     numOrNull($('g_demora_chasis').value),
     gasto_chasis_3_ejes:         numOrNull($('g_chasis_3_ejes').value),
+    gasto_estadias:              numOrNull($('g_estadias').value),
     tarifas: tarifas
   };
 }
