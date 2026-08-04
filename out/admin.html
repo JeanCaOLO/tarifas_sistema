@@ -210,6 +210,29 @@
     *{ transition:none !important; animation:none !important; }
     .spin{ display:none; }
   }
+
+  /* ---------- Tooltips ranking ---------- */
+  .tt{
+    position:relative; cursor:help; border-bottom:1px dashed var(--muted);
+  }
+  .tt .tt-box{
+    display:none; position:absolute; z-index:50;
+    bottom:calc(100% + 8px); left:50%; transform:translateX(-50%);
+    background:var(--ink); color:#fff; font-size:12px; font-weight:500;
+    padding:10px 12px; border-radius:8px; white-space:pre-line;
+    min-width:220px; max-width:320px; line-height:1.5;
+    box-shadow:0 8px 24px -8px rgba(0,0,0,.4);
+    pointer-events:none;
+  }
+  .tt .tt-box::after{
+    content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+    border:6px solid transparent; border-top-color:var(--ink);
+  }
+  .tt:hover .tt-box{ display:block; }
+  @media (max-width:900px){
+    .tt .tt-box{ left:auto; right:0; transform:none; }
+    .tt .tt-box::after{ left:auto; right:12px; transform:none; }
+  }
 </style>
 </head>
 <body>
@@ -245,6 +268,7 @@
       <nav class="tabs" aria-label="Secciones">
         <button type="button" class="tab active" id="tabRespuestas">Respuestas</button>
         <button type="button" class="tab" id="tabDashboard">Dashboard</button>
+        <button type="button" class="tab" id="tabRanking">Ranking</button>
       </nav>
       <span class="spacer"></span>
       <span class="whoami" id="whoami"></span>
@@ -353,6 +377,76 @@
         </div>
         <div class="empty" id="cmpEmpty" hidden>Aún no hay tarifas para comparar.</div>
       </div>
+    </section>
+
+    <!-- ===== TAB Ranking ===== -->
+    <section id="sec-ranking" hidden>
+      <div class="filters">
+        <div class="f">
+          <label for="rkPais">País</label>
+          <select id="rkPais">
+            <option value="">Todos</option>
+            <option value="CR">Costa Rica (CR)</option>
+            <option value="SV">El Salvador (SV)</option>
+            <option value="GT">Guatemala (GT)</option>
+            <option value="VNZ">Venezuela (VNZ)</option>
+          </select>
+        </div>
+        <div class="f">
+          <label for="rkTipo">Tarifa base</label>
+          <select id="rkTipo">
+            <option value="tarifa_20_std">20" STD</option>
+            <option value="tarifa_40_std" selected>40" STD</option>
+            <option value="tarifa_40_hc">40" HC</option>
+          </select>
+        </div>
+        <span class="spacer"></span>
+        <span class="count-note" id="rkNote" style="margin:0"></span>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi" style="border-left-color:#F2B33D"><div class="k-label">Criterio: Tarifa</div><div class="k-value" style="font-size:20px;color:var(--amber)">80%</div></div>
+        <div class="kpi" style="border-left-color:#4C6A64"><div class="k-label">Días libres destino</div><div class="k-value" style="font-size:20px;color:#4C6A64">5%</div></div>
+        <div class="kpi" style="border-left-color:#4C6A64"><div class="k-label">Crédito</div><div class="k-value" style="font-size:20px;color:#4C6A64">5%</div></div>
+        <div class="kpi" style="border-left-color:#4C6A64"><div class="k-label">Gastos destino</div><div class="k-value" style="font-size:20px;color:#4C6A64">5%</div></div>
+        <div class="kpi" style="border-left-color:#4C6A64"><div class="k-label">Herramienta seguimiento</div><div class="k-value" style="font-size:20px;color:#4C6A64">5%</div></div>
+      </div>
+
+      <div class="section-title">Ranking Global por Oferente</div>
+      <div class="charts" style="margin-bottom:16px">
+        <div class="chart-card" style="grid-column:1/-1"><h3>Puntaje promedio por oferente</h3><div class="c-wrap" style="height:300px"><canvas id="chRankGlobal"></canvas></div></div>
+      </div>
+      <div class="card" style="margin-bottom:22px">
+        <div class="table-scroll" style="max-height:400px">
+          <table class="grid">
+            <thead><tr>
+              <th>#</th><th>Oferente</th><th>País</th><th class="th-num">Rutas</th>
+              <th class="th-num">Puntaje Tarifa (80%)</th>
+              <th class="th-num">Días Libres (5%)</th>
+              <th class="th-num">Crédito (5%)</th>
+              <th class="th-num">Gastos (5%)</th>
+              <th class="th-num">Herramienta (5%)</th>
+              <th class="th-num" style="font-weight:800">Puntaje Total</th>
+            </tr></thead>
+            <tbody id="rkGlobalBody"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="rkGlobalEmpty" hidden>No hay datos para calcular ranking.</div>
+      </div>
+
+      <div class="section-title">Ranking por Ruta
+        <span style="position:relative; display:inline-block; margin-left:10px;">
+          <input type="search" id="rkRutaSearch" class="inline-select" placeholder="Buscar ruta..." style="min-width:300px; padding-right:30px;" autocomplete="off">
+          <span style="position:absolute; right:10px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--muted); font-size:12px;">🔍</span>
+          <div id="rkRutaDropdown" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:40; max-height:260px; overflow:auto; background:#fff; border:1px solid var(--line); border-top:0; border-radius:0 0 8px 8px; box-shadow:0 8px 20px -8px rgba(0,0,0,.2);"></div>
+        </span>
+        <button type="button" class="btn btn-ghost btn-sm" id="rkRutaClear" style="margin-left:6px;" hidden>✕ Limpiar</button>
+      </div>
+      <div class="charts" style="margin-bottom:16px">
+        <div class="chart-card" style="grid-column:1/-1"><h3 id="chRankRutaTitle">Comparativo por ruta</h3><div class="c-wrap" style="height:300px"><canvas id="chRankRuta"></canvas></div></div>
+      </div>
+      <div id="rkRutaTables"></div>
+      <div class="empty" id="rkRutaEmpty" hidden>No hay datos para calcular ranking por ruta.</div>
     </section>
   </div>
 </div>
@@ -577,8 +671,11 @@ function mostrarTab(cual) {
   tabActiva = cual;
   $('tabRespuestas').classList.toggle('active', cual === 'respuestas');
   $('tabDashboard').classList.toggle('active', cual === 'dashboard');
+  $('tabRanking').classList.toggle('active', cual === 'ranking');
   $('sec-respuestas').hidden = cual !== 'respuestas';
   $('sec-dashboard').hidden = cual !== 'dashboard';
+  $('sec-ranking').hidden = cual !== 'ranking';
+  if (cual === 'ranking') renderRanking();
 }
 
 /* ============================================================================
@@ -1021,6 +1118,335 @@ function renderComparativo() {
 }
 
 /* ============================================================================
+   TAB · RANKING
+   Puntaje: 80% tarifa + 5% días libres + 5% crédito + 5% gastos + 5% herramienta
+============================================================================ */
+let rkRutaSeleccionada = '';  // clave de la ruta seleccionada
+let rkRutaOpciones = [];     // [{clave, label}]
+function calcularRanking() {
+  const pais = $('rkPais').value;
+  const campo = $('rkTipo').value;
+
+  // Filtrar tarifas con tarifa válida
+  const rates = (pais ? tarifas.filter((t) => t.pais === pais) : tarifas)
+    .filter((t) => t[campo] !== null && Number(t[campo]) > 0);
+
+  if (!rates.length) return { porRuta: [], global: [] };
+
+  // Obtener datos de la submission para cada tarifa
+  const subMap = new Map();
+  for (const r of respuestas) subMap.set(r.id, r);
+
+  // Agrupar por ruta (origen + pais destino)
+  const grupos = new Map();
+  for (const t of rates) {
+    const clave = t.pais + '|' + t.origen;
+    if (!grupos.has(clave)) grupos.set(clave, []);
+    grupos.get(clave).push(t);
+  }
+
+  const porRuta = [];
+
+  for (const [clave, arr] of grupos) {
+    // Mejor tarifa de la ruta (menor)
+    const tarifas_arr = arr.map((t) => Number(t[campo]));
+    const mejorTarifa = Math.min(...tarifas_arr);
+
+    // Gastos: calcular suma para cada oferente → menor suma = 5, mayor = 1
+    const gastosArr = arr.map((t) => {
+      const sub = subMap.get(t.submission_id);
+      if (!sub) return null;
+      const suma = [sub.gasto_impresion_bl, sub.gasto_retiro_vacio,
+        sub.gasto_demora_contenedor_dia, sub.gasto_demora_chasis_dia,
+        sub.gasto_chasis_3_ejes, sub.gasto_estadias]
+        .reduce((acc, v) => acc + (v !== null && v !== undefined ? Number(v) : 0), 0);
+      return suma;
+    });
+    const gastosValidos = gastosArr.filter((v) => v !== null && v > 0);
+    const menorGasto = gastosValidos.length ? Math.min(...gastosValidos) : 0;
+    const mayorGasto = gastosValidos.length ? Math.max(...gastosValidos) : 0;
+
+    for (let idx = 0; idx < arr.length; idx++) {
+      const t = arr[idx];
+      const sub = subMap.get(t.submission_id);
+      if (!sub) continue;
+
+      const tarifa = Number(t[campo]);
+
+      // --- 80% TARIFA ---
+      // Mejor tarifa = 100 (que contribuye 80 puntos), peor proporcionalmente
+      const puntTarifa = mejorTarifa > 0 ? (mejorTarifa / tarifa) * 100 : 0;
+      const contrib_tarifa = puntTarifa * 0.80;
+
+      // --- 5% DÍAS LIBRES EN DESTINO ---
+      // Se usa dias_libres_destino de la RUTA (no submission)
+      const diasLibres = t.dias_libres_destino !== null ? Number(t.dias_libres_destino) : 0;
+      let contrib_dias = 0;
+      if (diasLibres >= 21) contrib_dias = 5;
+      else if (diasLibres >= 15) contrib_dias = 1;
+
+      // --- 5% CRÉDITO ---
+      const credito = sub.credito_dias !== null ? Number(sub.credito_dias) : 0;
+      let contrib_credito = 0;
+      if (credito >= 60) contrib_credito = 5;
+      else if (credito >= 45) contrib_credito = 1;
+
+      // --- 5% GASTOS EN DESTINO ---
+      const gastoSum = gastosArr[idx] || 0;
+      let contrib_gastos = 0;
+      if (gastosValidos.length > 0 && gastoSum > 0) {
+        if (gastoSum <= menorGasto) contrib_gastos = 5;
+        else if (gastoSum >= mayorGasto && mayorGasto > menorGasto) contrib_gastos = 1;
+        else if (mayorGasto > menorGasto) {
+          // Interpolación lineal entre 5 y 1
+          const ratio = (gastoSum - menorGasto) / (mayorGasto - menorGasto);
+          contrib_gastos = 5 - ratio * 4;
+        } else contrib_gastos = 5;
+      }
+
+      // --- 5% HERRAMIENTA DE SEGUIMIENTO ---
+      const herramienta = sub.herramienta_seguimiento;
+      const contrib_herramienta = (herramienta && herramienta.trim().length > 0) ? 5 : 0;
+
+      const puntajeTotal = contrib_tarifa + contrib_dias + contrib_credito + contrib_gastos + contrib_herramienta;
+
+      porRuta.push({
+        origen: t.origen,
+        region: t.region,
+        pais_nombre: t.pais_nombre || clave.split('|')[0],
+        pais: t.pais,
+        oferente: t.oferente || sub.oferente,
+        tarifa,
+        mejorTarifa,
+        diasLibres,
+        credito,
+        gastoSum: Math.round((gastosArr[idx] || 0) * 100) / 100,
+        menorGasto: Math.round(menorGasto * 100) / 100,
+        mayorGasto: Math.round(mayorGasto * 100) / 100,
+        herramienta: herramienta || '',
+        contrib_tarifa: Math.round(contrib_tarifa * 100) / 100,
+        contrib_dias,
+        contrib_credito,
+        contrib_gastos: Math.round(contrib_gastos * 100) / 100,
+        contrib_herramienta,
+        puntaje: Math.round(puntajeTotal * 100) / 100,
+        submission_id: t.submission_id
+      });
+    }
+  }
+
+  // Ordenar por puntaje desc
+  porRuta.sort((a, b) => b.puntaje - a.puntaje);
+
+  // Ranking global por oferente: promedio de puntaje de todas sus rutas
+  const oferMap = new Map();
+  for (const r of porRuta) {
+    const clave = r.oferente.trim().toLowerCase() + '|' + r.pais;
+    if (!oferMap.has(clave)) oferMap.set(clave, { oferente: r.oferente, pais: r.pais, pais_nombre: r.pais_nombre, rutas: 0, sum_tarifa: 0, sum_dias: 0, sum_credito: 0, sum_gastos: 0, sum_herramienta: 0, sum_total: 0 });
+    const o = oferMap.get(clave);
+    o.rutas++;
+    o.sum_tarifa += r.contrib_tarifa;
+    o.sum_dias += r.contrib_dias;
+    o.sum_credito += r.contrib_credito;
+    o.sum_gastos += r.contrib_gastos;
+    o.sum_herramienta += r.contrib_herramienta;
+    o.sum_total += r.puntaje;
+  }
+
+  const global = [...oferMap.values()].map((o) => ({
+    oferente: o.oferente,
+    pais: o.pais,
+    pais_nombre: o.pais_nombre,
+    rutas: o.rutas,
+    avg_tarifa: Math.round(o.sum_tarifa / o.rutas * 100) / 100,
+    avg_dias: Math.round(o.sum_dias / o.rutas * 100) / 100,
+    avg_credito: Math.round(o.sum_credito / o.rutas * 100) / 100,
+    avg_gastos: Math.round(o.sum_gastos / o.rutas * 100) / 100,
+    avg_herramienta: Math.round(o.sum_herramienta / o.rutas * 100) / 100,
+    avg_total: Math.round(o.sum_total / o.rutas * 100) / 100
+  })).sort((a, b) => b.avg_total - a.avg_total);
+
+  return { porRuta, global };
+}
+
+function renderRanking() {
+  const { porRuta, global } = calcularRanking();
+  const pais = $('rkPais').value;
+  $('rkNote').textContent = porRuta.length
+    ? `${porRuta.length} evaluaciones · ${global.length} oferentes`
+    : 'Sin datos';
+
+  // --- Tabla global ---
+  $('rkGlobalEmpty').hidden = global.length > 0;
+  $('rkGlobalBody').innerHTML = global.map((o, i) => {
+    const tipTarifa = `Promedio puntaje tarifa sobre ${o.rutas} rutas.\nMáx posible: 80 pts (mejor tarifa en cada ruta).\nPromedio obtenido: ${o.avg_tarifa.toFixed(2)} pts`;
+    const tipDias = `Promedio puntaje días libres sobre ${o.rutas} rutas.\n≥21 días = 5 | ≥15 días = 1 | <15 = 0\nPromedio: ${o.avg_dias.toFixed(2)} pts`;
+    const tipCredito = `Promedio puntaje crédito sobre ${o.rutas} rutas.\n≥60 días = 5 | ≥45 días = 1 | <45 = 0\nPromedio: ${o.avg_credito.toFixed(2)} pts`;
+    const tipGastos = `Promedio puntaje gastos sobre ${o.rutas} rutas.\nMenor suma gastos = 5 | Mayor = 1\nPromedio: ${o.avg_gastos.toFixed(2)} pts`;
+    const tipHerr = `Promedio puntaje herramienta sobre ${o.rutas} rutas.\nTiene valor = 5 | Vacío = 0\nPromedio: ${o.avg_herramienta.toFixed(2)} pts`;
+    const tipTotal = `Tarifa: ${o.avg_tarifa.toFixed(2)} / 80\nDías libres: ${o.avg_dias.toFixed(2)} / 5\nCrédito: ${o.avg_credito.toFixed(2)} / 5\nGastos: ${o.avg_gastos.toFixed(2)} / 5\nHerramienta: ${o.avg_herramienta.toFixed(2)} / 5\n─────────────\nTotal promedio: ${o.avg_total.toFixed(2)} / 100`;
+    return `<tr>
+      <td style="font-weight:800;color:${i < 3 ? 'var(--teal-deep)' : 'var(--muted)'}">${i + 1}</td>
+      <td style="font-weight:600">${esc(o.oferente)}</td>
+      <td><span class="badge">${esc(o.pais_nombre)}</span></td>
+      <td class="td-num num">${o.rutas}</td>
+      <td class="td-num num"><span class="tt">${o.avg_tarifa.toFixed(2)}<span class="tt-box">${tipTarifa}</span></span></td>
+      <td class="td-num num"><span class="tt">${o.avg_dias.toFixed(2)}<span class="tt-box">${tipDias}</span></span></td>
+      <td class="td-num num"><span class="tt">${o.avg_credito.toFixed(2)}<span class="tt-box">${tipCredito}</span></span></td>
+      <td class="td-num num"><span class="tt">${o.avg_gastos.toFixed(2)}<span class="tt-box">${tipGastos}</span></span></td>
+      <td class="td-num num"><span class="tt">${o.avg_herramienta.toFixed(2)}<span class="tt-box">${tipHerr}</span></span></td>
+      <td class="td-num num" style="font-weight:800;color:var(--teal-deep)"><span class="tt">${o.avg_total.toFixed(2)}<span class="tt-box">${tipTotal}</span></span></td>
+    </tr>`;
+  }).join('');
+
+  // --- Ranking por Ruta (agrupado) ---
+  // Agrupar porRuta por ruta (origen + pais)
+  const rutasMap = new Map();
+  for (const r of porRuta) {
+    const clave = r.pais + '|' + r.origen;
+    if (!rutasMap.has(clave)) rutasMap.set(clave, []);
+    rutasMap.get(clave).push(r);
+  }
+  // Ordenar dentro de cada grupo por puntaje desc
+  for (const arr of rutasMap.values()) arr.sort((a, b) => b.puntaje - a.puntaje);
+
+  // Poblar opciones de rutas y manejar búsqueda
+  const rutasOrdenadas = [...rutasMap.keys()].sort((a, b) => a.localeCompare(b, 'es'));
+  rkRutaOpciones = rutasOrdenadas.map((clave) => {
+    const primera = rutasMap.get(clave)[0];
+    return { clave, label: `${primera.origen} → ${primera.pais_nombre}` };
+  });
+
+  // Filtrar rutas a mostrar
+  const rutaFiltro = rkRutaSeleccionada;
+  const rutasAMostrar = rutaFiltro && rutasMap.has(rutaFiltro)
+    ? [[rutaFiltro, rutasMap.get(rutaFiltro)]]
+    : [...rutasMap.entries()].sort((a, b) => a[0].localeCompare(b[0], 'es'));
+
+  $('rkRutaClear').hidden = !rutaFiltro;
+  $('rkRutaEmpty').hidden = porRuta.length > 0;
+
+  // Renderizar tablas agrupadas
+  let htmlTablas = '';
+  for (const [clave, items] of rutasAMostrar) {
+    if (!items || !items.length) continue;
+    const primera = items[0];
+    const rutaLabel = `${primera.origen} → ${primera.pais_nombre}`;
+    htmlTablas += `
+      <div class="card" style="margin-bottom:14px">
+        <div style="padding:10px 14px; background:var(--teal-dark); color:#fff; font-weight:700; font-size:13px; letter-spacing:.03em;">
+          🚢 ${esc(rutaLabel)} <span style="opacity:.7; font-weight:500; margin-left:10px;">${items.length} oferente${items.length > 1 ? 's' : ''}</span>
+        </div>
+        <div class="table-scroll">
+          <table class="grid">
+            <thead><tr>
+              <th>#</th><th>Oferente</th>
+              <th class="th-num">Tarifa (USD)</th>
+              <th class="th-num">Punt. Tarifa (80%)</th>
+              <th class="th-num">Días Libres (5%)</th>
+              <th class="th-num">Crédito (5%)</th>
+              <th class="th-num">Gastos (5%)</th>
+              <th class="th-num">Herramienta (5%)</th>
+              <th class="th-num" style="font-weight:800">Puntaje Total</th>
+            </tr></thead>
+            <tbody>${items.map((r, i) => {
+              const tipTarifa = `Tarifa: $${fmtMoney(r.tarifa)}\nMejor tarifa en esta ruta: $${fmtMoney(r.mejorTarifa)}\nFórmula: (${fmtMoney(r.mejorTarifa)} / ${fmtMoney(r.tarifa)}) × 80 = ${r.contrib_tarifa.toFixed(2)}`;
+              const tipDias = `Días libres destino: ${r.diasLibres}\n≥21 días = 5 pts | ≥15 días = 1 pt | <15 = 0 pts\nResultado: ${r.contrib_dias.toFixed(2)} pts`;
+              const tipCredito = `Crédito: ${r.credito} días\n≥60 días = 5 pts | ≥45 días = 1 pt | <45 = 0 pts\nResultado: ${r.contrib_credito.toFixed(2)} pts`;
+              const tipGastos = `Suma gastos destino: $${fmtMoney(r.gastoSum)}\nMenor en ruta: $${fmtMoney(r.menorGasto)} (=5 pts)\nMayor en ruta: $${fmtMoney(r.mayorGasto)} (=1 pt)\nResultado: ${r.contrib_gastos.toFixed(2)} pts`;
+              const tipHerr = `Herramienta: ${r.herramienta ? '"' + esc(r.herramienta.slice(0, 60)) + '"' : '(vacío)'}\nTiene valor = 5 pts | Vacío = 0 pts\nResultado: ${r.contrib_herramienta.toFixed(2)} pts`;
+              const tipTotal = `Tarifa: ${r.contrib_tarifa.toFixed(2)}\nDías libres: ${r.contrib_dias.toFixed(2)}\nCrédito: ${r.contrib_credito.toFixed(2)}\nGastos: ${r.contrib_gastos.toFixed(2)}\nHerramienta: ${r.contrib_herramienta.toFixed(2)}\n─────────────\nTotal: ${r.puntaje.toFixed(2)} / 100`;
+              const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '';
+              return `<tr${i === 0 ? ' style="background:var(--mint)"' : ''}>
+                <td style="font-weight:800;color:${i < 3 ? 'var(--teal-deep)' : 'var(--muted)'}">${medal} ${i + 1}</td>
+                <td style="font-weight:600">${esc(r.oferente)} <span class="badge" style="font-size:10.5px;padding:2px 6px">${esc(r.pais)}</span></td>
+                <td class="td-num num">$${fmtMoney(r.tarifa)}</td>
+                <td class="td-num num"><span class="tt">${r.contrib_tarifa.toFixed(2)}<span class="tt-box">${tipTarifa}</span></span></td>
+                <td class="td-num num"><span class="tt">${r.contrib_dias.toFixed(2)}<span class="tt-box">${tipDias}</span></span></td>
+                <td class="td-num num"><span class="tt">${r.contrib_credito.toFixed(2)}<span class="tt-box">${tipCredito}</span></span></td>
+                <td class="td-num num"><span class="tt">${r.contrib_gastos.toFixed(2)}<span class="tt-box">${tipGastos}</span></span></td>
+                <td class="td-num num"><span class="tt">${r.contrib_herramienta.toFixed(2)}<span class="tt-box">${tipHerr}</span></span></td>
+                <td class="td-num num" style="font-weight:800;color:var(--teal-deep)"><span class="tt">${r.puntaje.toFixed(2)}<span class="tt-box">${tipTotal}</span></span></td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+  $('rkRutaTables').innerHTML = htmlTablas;
+
+  // --- Gráficos ---
+  if (!window.Chart) return;
+
+  // Gráfico global: barras horizontales con puntaje promedio por oferente (top 15)
+  const topGlobal = global.slice(0, 15);
+  pintarChart('chRankGlobal', {
+    type: 'bar',
+    data: {
+      labels: topGlobal.map((o) => `${o.oferente} (${o.pais})`),
+      datasets: [
+        { label: 'Tarifa (80%)', data: topGlobal.map((o) => o.avg_tarifa), backgroundColor: '#007A63', borderRadius: 3 },
+        { label: 'Días libres (5%)', data: topGlobal.map((o) => o.avg_dias), backgroundColor: '#00B497', borderRadius: 3 },
+        { label: 'Crédito (5%)', data: topGlobal.map((o) => o.avg_credito), backgroundColor: '#66D4C2', borderRadius: 3 },
+        { label: 'Gastos (5%)', data: topGlobal.map((o) => o.avg_gastos), backgroundColor: '#F2B33D', borderRadius: 3 },
+        { label: 'Herramienta (5%)', data: topGlobal.map((o) => o.avg_herramienta), backgroundColor: '#4C6A64', borderRadius: 3 }
+      ]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom' } },
+      scales: { x: { stacked: true, max: 100, title: { display: true, text: 'Puntaje' } }, y: { stacked: true } }
+    }
+  });
+
+  // Gráfico por ruta: comparativo de la ruta seleccionada o top ganadores
+  if (rutaFiltro && rutasMap.has(rutaFiltro)) {
+    const items = rutasMap.get(rutaFiltro);
+    $('chRankRutaTitle').textContent = `Comparativo: ${items[0].origen} → ${items[0].pais_nombre}`;
+    pintarChart('chRankRuta', {
+      type: 'bar',
+      data: {
+        labels: items.map((r) => `${r.oferente} (${r.pais})`),
+        datasets: [
+          { label: 'Tarifa (80%)', data: items.map((r) => r.contrib_tarifa), backgroundColor: '#007A63', borderRadius: 3 },
+          { label: 'Días libres (5%)', data: items.map((r) => r.contrib_dias), backgroundColor: '#00B497', borderRadius: 3 },
+          { label: 'Crédito (5%)', data: items.map((r) => r.contrib_credito), backgroundColor: '#66D4C2', borderRadius: 3 },
+          { label: 'Gastos (5%)', data: items.map((r) => r.contrib_gastos), backgroundColor: '#F2B33D', borderRadius: 3 },
+          { label: 'Herramienta (5%)', data: items.map((r) => r.contrib_herramienta), backgroundColor: '#4C6A64', borderRadius: 3 }
+        ]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom' } },
+        scales: { x: { stacked: true, max: 100, title: { display: true, text: 'Puntaje' } }, y: { stacked: true } }
+      }
+    });
+  } else {
+    // Mostrar el #1 de cada ruta
+    $('chRankRutaTitle').textContent = 'Mejor oferente por ruta (1º lugar de cada una)';
+    const ganadores = [...rutasMap.values()].map((arr) => arr[0]).sort((a, b) => b.puntaje - a.puntaje).slice(0, 12);
+    pintarChart('chRankRuta', {
+      type: 'bar',
+      data: {
+        labels: ganadores.map((r) => `${r.oferente} — ${r.origen.split(',')[0]}`),
+        datasets: [
+          { label: 'Tarifa (80%)', data: ganadores.map((r) => r.contrib_tarifa), backgroundColor: '#007A63', borderRadius: 3 },
+          { label: 'Días libres (5%)', data: ganadores.map((r) => r.contrib_dias), backgroundColor: '#00B497', borderRadius: 3 },
+          { label: 'Crédito (5%)', data: ganadores.map((r) => r.contrib_credito), backgroundColor: '#66D4C2', borderRadius: 3 },
+          { label: 'Gastos (5%)', data: ganadores.map((r) => r.contrib_gastos), backgroundColor: '#F2B33D', borderRadius: 3 },
+          { label: 'Herramienta (5%)', data: ganadores.map((r) => r.contrib_herramienta), backgroundColor: '#4C6A64', borderRadius: 3 }
+        ]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom' } },
+        scales: { x: { stacked: true, max: 100, title: { display: true, text: 'Puntaje' } }, y: { stacked: true } }
+      }
+    });
+  }
+}
+
+/* ============================================================================
    EVENTOS
 ============================================================================ */
 document.addEventListener('DOMContentLoaded', () => {
@@ -1034,6 +1460,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('tabRespuestas').addEventListener('click', () => mostrarTab('respuestas'));
   $('tabDashboard').addEventListener('click', () => mostrarTab('dashboard'));
+  $('tabRanking').addEventListener('click', () => mostrarTab('ranking'));
 
   ['fPais','fDesde','fHasta'].forEach((id) => $(id).addEventListener('change', renderRespuestas));
   $('fBuscar').addEventListener('input', renderRespuestas);
@@ -1059,6 +1486,71 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('dPais').addEventListener('change', renderDashboard);
   $('cmpTipo').addEventListener('change', renderComparativo);
+  $('rkPais').addEventListener('change', renderRanking);
+  $('rkTipo').addEventListener('change', renderRanking);
+
+  // Buscador de rutas
+  const rkSearchInput = $('rkRutaSearch');
+  const rkDropdown = $('rkRutaDropdown');
+
+  function renderRutaDropdown(filtro) {
+    const q = filtro.toLowerCase();
+    const items = q
+      ? rkRutaOpciones.filter((o) => o.label.toLowerCase().includes(q))
+      : rkRutaOpciones;
+    if (!items.length) {
+      rkDropdown.innerHTML = '<div style="padding:10px 12px;color:var(--muted);font-size:13px;">Sin resultados</div>';
+    } else {
+      rkDropdown.innerHTML = items.slice(0, 30).map((o) =>
+        `<div class="rk-dd-item" data-clave="${esc(o.clave)}" style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--line);">${esc(o.label)}</div>`
+      ).join('');
+    }
+    rkDropdown.style.display = 'block';
+  }
+
+  rkSearchInput.addEventListener('focus', () => renderRutaDropdown(rkSearchInput.value));
+  rkSearchInput.addEventListener('input', () => renderRutaDropdown(rkSearchInput.value));
+
+  rkDropdown.addEventListener('click', (ev) => {
+    const item = ev.target.closest('.rk-dd-item');
+    if (!item) return;
+    rkRutaSeleccionada = item.dataset.clave;
+    const opcion = rkRutaOpciones.find((o) => o.clave === rkRutaSeleccionada);
+    rkSearchInput.value = opcion ? opcion.label : '';
+    rkDropdown.style.display = 'none';
+    renderRanking();
+  });
+
+  rkSearchInput.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') rkDropdown.style.display = 'none';
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      const firstItem = rkDropdown.querySelector('.rk-dd-item');
+      if (firstItem) firstItem.click();
+    }
+  });
+
+  document.addEventListener('click', (ev) => {
+    if (!ev.target.closest('#rkRutaSearch') && !ev.target.closest('#rkRutaDropdown')) {
+      rkDropdown.style.display = 'none';
+    }
+  });
+
+  // Hover en dropdown
+  rkDropdown.addEventListener('mouseover', (ev) => {
+    const item = ev.target.closest('.rk-dd-item');
+    if (item) item.style.background = 'var(--mint)';
+  });
+  rkDropdown.addEventListener('mouseout', (ev) => {
+    const item = ev.target.closest('.rk-dd-item');
+    if (item) item.style.background = '';
+  });
+
+  $('rkRutaClear').addEventListener('click', () => {
+    rkRutaSeleccionada = '';
+    rkSearchInput.value = '';
+    renderRanking();
+  });
 
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') {
