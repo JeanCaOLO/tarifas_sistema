@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -479,6 +479,8 @@
     <div class="m-body" id="detailBody"></div>
     <div class="m-foot">
       <button type="button" class="btn btn-ghost" id="btnDetailClose">Cerrar</button>
+      <button type="button" class="btn btn-ghost" id="btnDetailEdit">✏ Editar</button>
+      <button type="button" class="btn btn-primary" id="btnDetailSave" hidden>Guardar cambios</button>
       <button type="button" class="btn btn-primary" id="btnDetailExcel">Descargar Excel (Anexo B)</button>
     </div>
   </div>
@@ -760,62 +762,194 @@ function abrirDetalle(id) {
   const r = respuestas.find((x) => x.id === id);
   if (!r) return;
   detalleActual = r;
-  const rutas = (tarifasPorFolio.get(id) || []).slice()
+  editMode = false;
+  $('btnDetailEdit').hidden = false;
+  $('btnDetailSave').hidden = true;
+  renderDetalle(r);
+  $('detailOverlay').classList.add('open');
+}
+
+let editMode = false;
+
+function renderDetalle(r) {
+  const rutas = (tarifasPorFolio.get(r.id) || []).slice()
     .sort((a, b) => a.origen.localeCompare(b.origen, 'es'));
 
   $('detailTitle').textContent = 'Tarifas Marítimas — ' + r.pais_nombre;
   $('detailMeta').textContent =
     `${r.oferente} · Folio ${folioDe(r.id)} · ${fmtFecha(r.created_at)}`;
 
-  const filasHtml = rutas.map((t) => `
-    <tr>
-      <td style="font-weight:600">${esc(t.origen)}</td>
-      <td>${esc(t.region)}</td>
-      <td>${esc(t.destino)}</td>
-      <td class="td-num num">${t.dias_libres_origen ?? '—'}</td>
-      <td class="td-num num">${t.dias_libres_destino ?? '—'}</td>
-      <td>${esc(t.navieras || '—')}</td>
-      <td>${esc(t.tiempo_transito || '—')}</td>
-      <td>${esc(t.puerto_arribo || '—')}</td>
-      <td class="td-num num">${fmtMoney(t.tarifa_20_std)}</td>
-      <td class="td-num num">${fmtMoney(t.tarifa_40_std)}</td>
-      <td class="td-num num">${fmtMoney(t.tarifa_40_hc)}</td>
-    </tr>`).join('');
+  if (!editMode) {
+    const filasHtml = rutas.map((t) => `
+      <tr>
+        <td style="font-weight:600">${esc(t.origen)}</td>
+        <td>${esc(t.region)}</td>
+        <td>${esc(t.destino)}</td>
+        <td class="td-num num">${t.dias_libres_origen ?? '—'}</td>
+        <td class="td-num num">${t.dias_libres_destino ?? '—'}</td>
+        <td>${esc(t.navieras || '—')}</td>
+        <td>${esc(t.tiempo_transito || '—')}</td>
+        <td>${esc(t.puerto_arribo || '—')}</td>
+        <td class="td-num num">${fmtMoney(t.tarifa_20_std)}</td>
+        <td class="td-num num">${fmtMoney(t.tarifa_40_std)}</td>
+        <td class="td-num num">${fmtMoney(t.tarifa_40_hc)}</td>
+      </tr>`).join('');
 
-  const condHtml = CONDICIONES.map(([lbl, fn]) => `
-    <div class="crow"><div class="l">${lbl}</div><div class="v">${esc(fn(r) ?? '') || '—'}</div></div>`).join('');
-  const gastosHtml = GASTOS.map(([lbl, campo]) => `
-    <div class="crow"><div class="l">${lbl}</div>
-      <div class="v num">${r[campo] === null ? '—' : 'USD ' + fmtMoney(r[campo])}</div></div>`).join('');
+    const condHtml = CONDICIONES.map(([lbl, fn]) => `
+      <div class="crow"><div class="l">${lbl}</div><div class="v">${esc(fn(r) ?? '') || '—'}</div></div>`).join('');
+    const gastosHtml = GASTOS.map(([lbl, campo]) => `
+      <div class="crow"><div class="l">${lbl}</div>
+        <div class="v num">${r[campo] === null ? '—' : 'USD ' + fmtMoney(r[campo])}</div></div>`).join('');
 
-  $('detailBody').innerHTML = `
-    <div class="detail-meta">
-      <div><b>Oferente</b>${esc(r.oferente)}</div>
-      <div><b>País</b>${esc(r.pais_nombre)} (${esc(r.pais)})</div>
-      <div><b>Correo</b>${esc(r.email_contacto || '—')}</div>
-      <div><b>Región</b>${esc(r.region ? (Array.isArray(r.region) ? r.region.join(', ') : r.region) : '—')}</div>
-      <div><b>Rutas cotizadas</b>${r.rutas_cotizadas} / ${TOTAL_RUTAS}</div>
-    </div>
-    <div class="detail-scroll">
-      <table class="mini">
-        <thead><tr>
+    $('detailBody').innerHTML = `
+      <div class="detail-meta">
+        <div><b>Oferente</b>${esc(r.oferente)}</div>
+        <div><b>País</b>${esc(r.pais_nombre)} (${esc(r.pais)})</div>
+        <div><b>Correo</b>${esc(r.email_contacto || '—')}</div>
+        <div><b>Región</b>${esc(r.region ? (Array.isArray(r.region) ? r.region.join(', ') : r.region) : '—')}</div>
+        <div><b>Rutas cotizadas</b>${r.rutas_cotizadas} / ${TOTAL_RUTAS}</div>
+      </div>
+      <div class="detail-scroll">
+        <table class="mini"><thead><tr>
           <th>Origen</th><th>Región</th><th>Destino</th>
-          <th>Días Libres
-en Origen</th><th>Días Libres
-en Destino</th>
+          <th>Días Libres en Origen</th><th>Días Libres en Destino</th>
           <th>Naviera(s)</th><th>Tiempo de tránsito</th><th>Puerto de Arribo</th>
           <th>20" STD</th><th>40" STD</th><th>40" HC</th>
         </tr></thead>
         <tbody>${filasHtml || '<tr><td colspan="11" style="text-align:center;color:var(--muted)">Sin rutas registradas</td></tr>'}</tbody>
-      </table>
-    </div>
-    <div class="cond-list">
-      <div class="cbar">Condiciones Comerciales</div>
-      ${condHtml}
-      <div class="csub">Gastos en destino</div>
-      ${gastosHtml}
-    </div>`;
-  $('detailOverlay').classList.add('open');
+        </table>
+      </div>
+      <div class="cond-list">
+        <div class="cbar">Condiciones Comerciales</div>
+        ${condHtml}
+        <div class="csub">Gastos en destino</div>
+        ${gastosHtml}
+      </div>`;
+  } else {
+    const inpNum = (val) => `<input type="number" step="0.01" value="${val ?? ''}" style="width:78px;padding:3px 5px;font:inherit;font-size:12px;border:1px solid var(--line);border-radius:4px;text-align:right;">`;
+    const inpInt = (val) => `<input type="number" step="1" value="${val ?? ''}" style="width:65px;padding:3px 5px;font:inherit;font-size:12px;border:1px solid var(--line);border-radius:4px;text-align:right;">`;
+    const inpTxt = (val, w) => `<input type="text" value="${esc(val ?? '')}" style="width:${w || '100%'};padding:3px 5px;font:inherit;font-size:12px;border:1px solid var(--line);border-radius:4px;">`;
+
+    const filasHtml = rutas.map((t) => `
+      <tr data-rate-id="${t.id}">
+        <td style="font-weight:600">${esc(t.origen)}</td>
+        <td>${esc(t.region)}</td>
+        <td>${esc(t.destino)}</td>
+        <td class="td-num">${inpInt(t.dias_libres_origen)}</td>
+        <td class="td-num">${inpInt(t.dias_libres_destino)}</td>
+        <td>${inpTxt(t.navieras, '120px')}</td>
+        <td>${inpTxt(t.tiempo_transito, '100px')}</td>
+        <td>${inpTxt(t.puerto_arribo, '130px')}</td>
+        <td class="td-num">${inpNum(t.tarifa_20_std)}</td>
+        <td class="td-num">${inpNum(t.tarifa_40_std)}</td>
+        <td class="td-num">${inpNum(t.tarifa_40_hc)}</td>
+      </tr>`).join('');
+
+    const regionCA = r.region && (Array.isArray(r.region) ? r.region : [r.region]).includes('CA');
+    const regionVE = r.region && (Array.isArray(r.region) ? r.region : [r.region]).includes('VE');
+
+    $('detailBody').innerHTML = `
+      <div class="detail-meta" style="gap:10px 16px;">
+        <div><b>Oferente</b><input type="text" id="ed_oferente" value="${esc(r.oferente)}" style="width:100%;padding:6px 8px;font:inherit;border:1px solid var(--line);border-radius:5px;"></div>
+        <div><b>Correo</b><input type="email" id="ed_email" value="${esc(r.email_contacto || '')}" style="width:100%;padding:6px 8px;font:inherit;border:1px solid var(--line);border-radius:5px;"></div>
+        <div><b>Región</b>
+          <label style="margin-right:12px;cursor:pointer"><input type="checkbox" id="ed_region_ca" ${regionCA ? 'checked' : ''} style="width:16px;height:16px;accent-color:var(--teal);"> CA</label>
+          <label style="cursor:pointer"><input type="checkbox" id="ed_region_ve" ${regionVE ? 'checked' : ''} style="width:16px;height:16px;accent-color:var(--teal);"> VE</label>
+        </div>
+        <div><b>País</b>${esc(r.pais_nombre)} (${esc(r.pais)})</div>
+      </div>
+      <div class="detail-scroll" style="max-height:38vh">
+        <table class="mini" id="editRatesTable"><thead><tr>
+          <th>Origen</th><th>Región</th><th>Destino</th>
+          <th>Días Orig</th><th>Días Dest</th><th>Naviera(s)</th><th>Tránsito</th><th>Puerto</th>
+          <th>20" STD</th><th>40" STD</th><th>40" HC</th>
+        </tr></thead>
+        <tbody>${filasHtml || '<tr><td colspan="11" style="text-align:center;color:var(--muted)">Sin rutas</td></tr>'}</tbody>
+        </table>
+      </div>
+      <div class="cond-list">
+        <div class="cbar">Condiciones Comerciales</div>
+        <div class="crow"><div class="l">Vigencia del</div><div class="val"><input type="date" id="ed_vigencia_del" value="${r.vigencia_del || ''}" style="padding:5px 8px;border:1px solid var(--line);border-radius:5px;font:inherit;"></div></div>
+        <div class="crow"><div class="l">Vigencia al</div><div class="val"><input type="date" id="ed_vigencia_al" value="${r.vigencia_al || ''}" style="padding:5px 8px;border:1px solid var(--line);border-radius:5px;font:inherit;"></div></div>
+        <div class="crow"><div class="l">Las tarifas incluyen</div><div class="val"><textarea id="ed_tarifas_incluyen" rows="2" style="width:100%;font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:5px;">${esc(r.tarifas_incluyen || '')}</textarea></div></div>
+        <div class="crow"><div class="l">Las tarifas NO incluyen</div><div class="val"><textarea id="ed_tarifas_no_incluyen" rows="2" style="width:100%;font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:5px;">${esc(r.tarifas_no_incluyen || '')}</textarea></div></div>
+        <div class="crow"><div class="l">Herramienta seguimiento</div><div class="val"><input type="text" id="ed_herramienta" value="${esc(r.herramienta_seguimiento || '')}" style="width:100%;padding:5px 8px;font:inherit;border:1px solid var(--line);border-radius:5px;"></div></div>
+        <div class="crow"><div class="l">Credito (días)</div><div class="val"><input type="number" id="ed_credito" value="${r.credito_dias ?? ''}" min="0" step="1" style="width:120px;padding:5px 8px;font:inherit;border:1px solid var(--line);border-radius:5px;"></div></div>
+        <div class="crow"><div class="l">Observaciones</div><div class="val"><textarea id="ed_observaciones" rows="2" style="width:100%;font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:5px;">${esc(r.observaciones || '')}</textarea></div></div>
+        <div class="csub">Gastos en destino (USD)</div>
+        <div class="crow"><div class="l">Impresión de BL</div><div class="val"><input type="number" id="ed_g_impresion" value="${r.gasto_impresion_bl ?? ''}" min="0" step="0.01" style="width:140px;padding:5px 8px;font:inherit;border:1px solid var(--line);border-radius:5px;"></div></div>
+        <div class="crow"><div class="l">Retiro de vacío</div><div class="val"><input type="number" id="ed_g_retiro" value="${r.gasto_retiro_vacio ?? ''}" min="0" step="0.01" style="width:140px;padding:5px 8px;font:inherit;border:1px solid var(--line);border-radius:5px;"></div></div>
+        <div class="crow"><div class="l">Demoras contenedor/día</div><div class="val"><input type="number" id="ed_g_demora_cont" value="${r.gasto_demora_contenedor_dia ?? ''}" min="0" step="0.01" style="width:140px;padding:5px 8px;font:inherit;border:1px solid var(--line);border-radius:5px;"></div></div>
+        <div class="crow"><div class="l">Demoras chasis/día</div><div class="val"><input type="number" id="ed_g_demora_chasis" value="${r.gasto_demora_chasis_dia ?? ''}" min="0" step="0.01" style="width:140px;padding:5px 8px;font:inherit;border:1px solid var(--line);border-radius:5px;"></div></div>
+        <div class="crow"><div class="l">Chasis 3 ejes</div><div class="val"><input type="number" id="ed_g_chasis3" value="${r.gasto_chasis_3_ejes ?? ''}" min="0" step="0.01" style="width:140px;padding:5px 8px;font:inherit;border:1px solid var(--line);border-radius:5px;"></div></div>
+        <div class="crow"><div class="l">Estadias</div><div class="val"><input type="number" id="ed_g_estadias" value="${r.gasto_estadias ?? ''}" min="0" step="0.01" style="width:140px;padding:5px 8px;font:inherit;border:1px solid var(--line);border-radius:5px;"></div></div>
+      </div>`;
+  }
+}
+
+function activarEdicion() {
+  editMode = true;
+  $('btnDetailEdit').hidden = true;
+  $('btnDetailSave').hidden = false;
+  renderDetalle(detalleActual);
+}
+
+async function guardarEdicion() {
+  if (!detalleActual || !sb) return;
+  const btn = $('btnDetailSave');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  try {
+    const numOrNull = (v) => { const n = Number(v); return (v === '' || v === null || v === undefined || !Number.isFinite(n)) ? null : n; };
+    const regionArr = [];
+    if ($('ed_region_ca').checked) regionArr.push('CA');
+    if ($('ed_region_ve').checked) regionArr.push('VE');
+    const subUpdate = {
+      oferente: $('ed_oferente').value.trim(),
+      email_contacto: $('ed_email').value.trim() || null,
+      region: regionArr,
+      vigencia_del: $('ed_vigencia_del').value || null,
+      vigencia_al: $('ed_vigencia_al').value || null,
+      tarifas_incluyen: $('ed_tarifas_incluyen').value.trim() || null,
+      tarifas_no_incluyen: $('ed_tarifas_no_incluyen').value.trim() || null,
+      herramienta_seguimiento: $('ed_herramienta').value.trim() || null,
+      credito_dias: numOrNull($('ed_credito').value),
+      observaciones: $('ed_observaciones').value.trim() || null,
+      gasto_impresion_bl: numOrNull($('ed_g_impresion').value),
+      gasto_retiro_vacio: numOrNull($('ed_g_retiro').value),
+      gasto_demora_contenedor_dia: numOrNull($('ed_g_demora_cont').value),
+      gasto_demora_chasis_dia: numOrNull($('ed_g_demora_chasis').value),
+      gasto_chasis_3_ejes: numOrNull($('ed_g_chasis3').value),
+      gasto_estadias: numOrNull($('ed_g_estadias').value)
+    };
+    const { error: errSub } = await sb.from('rfp_submissions').update(subUpdate).eq('id', detalleActual.id);
+    if (errSub) throw errSub;
+    const tabla = document.getElementById('editRatesTable');
+    if (tabla) {
+      const filas = tabla.querySelectorAll('tbody tr[data-rate-id]');
+      for (const fila of filas) {
+        const rateId = Number(fila.dataset.rateId);
+        const inputs = fila.querySelectorAll('input');
+        const rateUpdate = {
+          dias_libres_origen: numOrNull(inputs[0]?.value),
+          dias_libres_destino: numOrNull(inputs[1]?.value),
+          navieras: inputs[2]?.value.trim() || null,
+          tiempo_transito: inputs[3]?.value.trim() || null,
+          puerto_arribo: inputs[4]?.value.trim() || null,
+          tarifa_20_std: numOrNull(inputs[5]?.value),
+          tarifa_40_std: numOrNull(inputs[6]?.value),
+          tarifa_40_hc: numOrNull(inputs[7]?.value)
+        };
+        const { error: errRate } = await sb.from('rfp_rates').update(rateUpdate).eq('id', rateId);
+        if (errRate) throw errRate;
+      }
+    }
+    await cargarDatos();
+    const updated = respuestas.find((x) => x.id === detalleActual.id);
+    if (updated) { detalleActual = updated; editMode = false; $('btnDetailEdit').hidden = false; $('btnDetailSave').hidden = true; renderDetalle(updated); }
+    showMsg('Guardado', 'Los cambios se guardaron correctamente.', false);
+  } catch (e) {
+    showMsg('Error al guardar', esc(e.message || 'No se pudieron guardar los cambios.'));
+  } finally { btn.disabled = false; btn.textContent = 'Guardar cambios'; }
 }
 
 /* ---------- Eliminar ---------- */
@@ -1529,6 +1663,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   $('btnDetailClose').addEventListener('click', () => $('detailOverlay').classList.remove('open'));
+  $('btnDetailEdit').addEventListener('click', activarEdicion);
+  $('btnDetailSave').addEventListener('click', guardarEdicion);
   $('btnDetailExcel').addEventListener('click', () => { if (detalleActual) exportarAnexo(detalleActual.id); });
   $('btnDelCancel').addEventListener('click', () => $('delOverlay').classList.remove('open'));
   $('btnDelConfirm').addEventListener('click', confirmarEliminar);
