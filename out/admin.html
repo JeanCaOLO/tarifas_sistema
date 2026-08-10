@@ -269,6 +269,7 @@
         <button type="button" class="tab active" id="tabRespuestas">Respuestas</button>
         <button type="button" class="tab" id="tabDashboard">Dashboard</button>
         <button type="button" class="tab" id="tabRanking">Ranking</button>
+        <button type="button" class="tab" id="tabRanking2">Ranking Regional</button>
       </nav>
       <span class="spacer"></span>
       <span class="whoami" id="whoami"></span>
@@ -465,6 +466,48 @@
       </div>
       <div id="rkRutaTables"></div>
       <div class="empty" id="rkRutaEmpty" hidden>No hay datos para calcular ranking por ruta.</div>
+    </section>
+
+    <!-- ===== TAB Ranking Regional ===== -->
+    <section id="sec-ranking2" hidden>
+      <div class="filters">
+        <div class="f">
+          <label for="rk2Region">Región</label>
+          <select id="rk2Region">
+            <option value="CA">CA (Centro América)</option>
+            <option value="VE">VE (Venezuela)</option>
+          </select>
+        </div>
+        <div class="f">
+          <label for="rk2Tipo">Tarifa base</label>
+          <select id="rk2Tipo">
+            <option value="tarifa_20_std">20" STD</option>
+            <option value="tarifa_40_std" selected>40" STD</option>
+            <option value="tarifa_40_hc">40" HC</option>
+          </select>
+        </div>
+        <span class="spacer"></span>
+        <span class="count-note" id="rk2Note" style="margin:0"></span>
+      </div>
+
+      <div class="kpis" id="rk2Pesos"></div>
+
+      <div class="section-title">Nota Final por Oferente</div>
+      <div class="charts" style="margin-bottom:16px">
+        <div class="chart-card" style="grid-column:1/-1"><h3 id="chRank2Title">Ranking Regional</h3><div class="c-wrap" style="height:320px"><canvas id="chRank2"></canvas></div></div>
+      </div>
+      <div class="card" style="margin-bottom:22px">
+        <div class="table-scroll" style="max-height:450px">
+          <table class="grid">
+            <thead><tr id="rk2Head"></tr></thead>
+            <tbody id="rk2Body"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="rk2Empty" hidden>No hay datos suficientes.</div>
+      </div>
+
+      <div class="section-title">Detalle por País Destino</div>
+      <div id="rk2DetailTables"></div>
     </section>
   </div>
 </div>
@@ -692,10 +735,13 @@ function mostrarTab(cual) {
   $('tabRespuestas').classList.toggle('active', cual === 'respuestas');
   $('tabDashboard').classList.toggle('active', cual === 'dashboard');
   $('tabRanking').classList.toggle('active', cual === 'ranking');
+  $('tabRanking2').classList.toggle('active', cual === 'ranking2');
   $('sec-respuestas').hidden = cual !== 'respuestas';
   $('sec-dashboard').hidden = cual !== 'dashboard';
   $('sec-ranking').hidden = cual !== 'ranking';
+  $('sec-ranking2').hidden = cual !== 'ranking2';
   if (cual === 'ranking') renderRanking();
+  if (cual === 'ranking2') renderRanking2();
 }
 
 /* ============================================================================
@@ -1631,6 +1677,220 @@ function renderRanking() {
 }
 
 /* ============================================================================
+   TAB · RANKING REGIONAL (Ronda 2)
+   Pesos CA: América 7%, Europa 3%, Asia PB 70%, Asia 20%
+   Pesos VE: América 13%, Europa 2%, Asia PB 65%, Asia 20%
+   Pesos por país destino CA: CR 52%, SV 27%, GT 22%
+   Pesos por país destino VE: VNZ 100%
+============================================================================ */
+const RK2_CONFIG = {
+  CA: {
+    regionPesos: { America: 7, Europa: 3, 'Asia Puertos Base': 70, Asia: 20 },
+    paisPesos: { CR: 52, SV: 27, GT: 22 }
+  },
+  VE: {
+    regionPesos: { America: 13, Europa: 2, 'Asia Puertos Base': 65, Asia: 20 },
+    paisPesos: { VNZ: 100 }
+  }
+};
+
+function renderRanking2() {
+  const formRegion = $('rk2Region').value; // CA o VE
+  const campo = $('rk2Tipo').value;
+  const config = RK2_CONFIG[formRegion];
+  if (!config) return;
+
+  const { regionPesos, paisPesos } = config;
+  const paisesDestino = Object.keys(paisPesos);
+
+  // Mostrar pesos en KPIs
+  const regLabels = { America: 'América', Europa: 'Europa', 'Asia Puertos Base': 'Asia PB', Asia: 'Asia (resto)' };
+  $('rk2Pesos').innerHTML =
+    Object.entries(regionPesos).map(([reg, peso]) =>
+      `<div class="kpi" style="border-left-color:${reg.startsWith('Asia P') ? '#F2B33D' : '#4C6A64'}"><div class="k-label">${regLabels[reg] || reg}</div><div class="k-value" style="font-size:20px">${peso}%</div></div>`
+    ).join('') +
+    '<div class="kpi" style="border-left-color:var(--teal)"><div class="k-label">Países destino</div><div class="k-value" style="font-size:14px">' +
+    Object.entries(paisPesos).map(([p, w]) => `${PAISES[p] || p} ${w}%`).join(' · ') + '</div></div>';
+
+  // Filtrar submissions que tengan la región del formulario (CA o VE)
+  const subMap = new Map();
+  for (const r of respuestas) subMap.set(r.id, r);
+
+  // Filtrar tarifas válidas para los países destino de esta región
+  const ratesValidas = tarifas.filter((t) => {
+    if (!paisesDestino.includes(t.pais)) return false;
+    if (t[campo] === null || Number(t[campo]) <= 0) return false;
+    const sub = subMap.get(t.submission_id);
+    if (!sub) return false;
+    const reg = Array.isArray(sub.region) ? sub.region : (sub.region ? [sub.region] : []);
+    return reg.includes(formRegion);
+  });
+
+  if (!ratesValidas.length) {
+    $('rk2Empty').hidden = false;
+    $('rk2Body').innerHTML = '';
+    $('rk2DetailTables').innerHTML = '';
+    $('rk2Note').textContent = 'Sin datos';
+    return;
+  }
+
+  // Para cada país destino + región origen, calcular score relativo de cada oferente
+  // Score = promedio de tarifas del oferente en esa subregión, mejor promedio = 100
+
+  const oferentes = new Set();
+  for (const t of ratesValidas) oferentes.add((t.oferente || subMap.get(t.submission_id)?.oferente || '').trim());
+
+  // Estructura: paisScores[pais][oferente] = { regScores: { regionOrigen: score }, notaPais }
+  const paisScores = {};
+  const paisDetalles = {}; // para tablas de detalle
+
+  for (const pais of paisesDestino) {
+    const ratesPais = ratesValidas.filter((t) => t.pais === pais);
+    paisScores[pais] = {};
+    paisDetalles[pais] = [];
+
+    // Agrupar por región origen
+    const regiones = Object.keys(regionPesos);
+    const oferScoresPorRegion = {}; // oferente -> { region -> avgTarifa }
+
+    for (const reg of regiones) {
+      // Filtrar tarifas de esta region origen
+      const ratesReg = ratesPais.filter((t) => {
+        const regionOrigen = REGION_POR_ORIGEN.get(t.origen) || t.region || '';
+        if (reg === 'Asia') return regionOrigen === 'Asia';
+        if (reg === 'Asia Puertos Base') return regionOrigen === 'Asia Puertos Base';
+        return regionOrigen === reg;
+      });
+
+      // Promedio de tarifa por oferente en esta subregión
+      const oferAvg = new Map();
+      for (const t of ratesReg) {
+        const ofer = (t.oferente || subMap.get(t.submission_id)?.oferente || '').trim();
+        if (!oferAvg.has(ofer)) oferAvg.set(ofer, { sum: 0, count: 0 });
+        const o = oferAvg.get(ofer);
+        o.sum += Number(t[campo]);
+        o.count++;
+      }
+
+      // Mejor promedio = 100, el resto proporcional
+      const avgs = [...oferAvg.entries()].map(([ofer, o]) => ({ ofer, avg: o.sum / o.count }));
+      const mejorAvg = avgs.length ? Math.min(...avgs.map((a) => a.avg)) : 0;
+
+      for (const { ofer, avg } of avgs) {
+        if (!oferScoresPorRegion[ofer]) oferScoresPorRegion[ofer] = {};
+        oferScoresPorRegion[ofer][reg] = mejorAvg > 0 ? (mejorAvg / avg) * 100 : 0;
+      }
+    }
+
+    // Calcular nota del país para cada oferente
+    for (const [ofer, regScores] of Object.entries(oferScoresPorRegion)) {
+      let notaPais = 0;
+      const detalle = { oferente: ofer };
+      for (const [reg, peso] of Object.entries(regionPesos)) {
+        const score = regScores[reg] || 0;
+        const contrib = score * (peso / 100);
+        notaPais += contrib;
+        detalle[reg] = Math.round(score * 100) / 100;
+        detalle[reg + '_contrib'] = Math.round(contrib * 100) / 100;
+      }
+      detalle.notaPais = Math.round(notaPais * 100) / 100;
+      paisScores[pais][ofer] = detalle;
+      paisDetalles[pais].push(detalle);
+    }
+    paisDetalles[pais].sort((a, b) => b.notaPais - a.notaPais);
+  }
+
+  // Nota final por oferente: ponderar notas de cada país
+  const notaFinal = [];
+  for (const ofer of oferentes) {
+    let totalPonderado = 0;
+    const row = { oferente: ofer };
+    for (const [pais, peso] of Object.entries(paisPesos)) {
+      const score = paisScores[pais]?.[ofer]?.notaPais || 0;
+      row[pais] = Math.round(score * 100) / 100;
+      totalPonderado += score * (peso / 100);
+    }
+    row.notaFinal = Math.round(totalPonderado * 100) / 100;
+    notaFinal.push(row);
+  }
+  notaFinal.sort((a, b) => b.notaFinal - a.notaFinal);
+
+  $('rk2Note').textContent = `${notaFinal.length} oferentes · ${ratesValidas.length} tarifas evaluadas`;
+  $('rk2Empty').hidden = notaFinal.length > 0;
+
+  // Tabla principal
+  const paisCols = paisesDestino.map((p) => `<th class="th-num">${PAISES[p] || p} (${paisPesos[p]}%)</th>`).join('');
+  $('rk2Head').innerHTML = `<th>#</th><th>Oferente</th>${paisCols}<th class="th-num" style="font-weight:800">Nota Final</th>`;
+
+  $('rk2Body').innerHTML = notaFinal.map((row, i) => {
+    const paisTds = paisesDestino.map((p) => `<td class="td-num num">${row[p]?.toFixed(2) || '—'}</td>`).join('');
+    const tipTotal = paisesDestino.map((p) => `${PAISES[p] || p}: ${row[p]?.toFixed(2) || 0} × ${paisPesos[p]}%`).join('\n') + `\n─────────\nNota Final: ${row.notaFinal.toFixed(2)} / 100`;
+    return `<tr${i === 0 ? ' style="background:var(--mint)"' : ''}>
+      <td style="font-weight:800;color:${i < 3 ? 'var(--teal-deep)' : 'var(--muted)'}">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''} ${i + 1}</td>
+      <td style="font-weight:600">${esc(row.oferente)}</td>
+      ${paisTds}
+      <td class="td-num num" style="font-weight:800;color:var(--teal-deep)"><span class="tt">${row.notaFinal.toFixed(2)}<span class="tt-box">${tipTotal}</span></span></td>
+    </tr>`;
+  }).join('');
+
+  // Gráfico
+  if (window.Chart) {
+    $('chRank2Title').textContent = `Ranking Regional ${formRegion} — Nota final por oferente`;
+    const top15 = notaFinal.slice(0, 15);
+    pintarChart('chRank2', {
+      type: 'bar',
+      data: {
+        labels: top15.map((r) => r.oferente),
+        datasets: paisesDestino.map((p, idx) => ({
+          label: `${PAISES[p] || p} (${paisPesos[p]}%)`,
+          data: top15.map((r) => (r[p] || 0) * paisPesos[p] / 100),
+          backgroundColor: COLORES[idx % COLORES.length],
+          borderRadius: 3
+        }))
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom' } },
+        scales: { x: { stacked: true, max: 100, title: { display: true, text: 'Nota Final' } }, y: { stacked: true } }
+      }
+    });
+  }
+
+  // Tablas de detalle por país
+  const regLabelsShort = { America: 'América', Europa: 'Europa', 'Asia Puertos Base': 'Asia PB', Asia: 'Asia' };
+  let detailHtml = '';
+  for (const pais of paisesDestino) {
+    const items = paisDetalles[pais];
+    if (!items.length) continue;
+    const regCols = Object.entries(regionPesos).map(([reg, peso]) =>
+      `<th class="th-num">${regLabelsShort[reg]} (${peso}%)</th><th class="th-num">Contrib</th>`).join('');
+    detailHtml += `
+      <div class="card" style="margin-bottom:14px">
+        <div style="padding:10px 14px; background:var(--teal-dark); color:#fff; font-weight:700; font-size:13px;">
+          📊 ${PAISES[pais] || pais} (${pais}) — Peso: ${paisPesos[pais]}%
+        </div>
+        <div class="table-scroll">
+          <table class="grid">
+            <thead><tr><th>#</th><th>Oferente</th>${regCols}<th class="th-num" style="font-weight:800">Nota País</th></tr></thead>
+            <tbody>${items.map((d, i) => {
+              const regTds = Object.entries(regionPesos).map(([reg]) =>
+                `<td class="td-num num">${(d[reg] || 0).toFixed(1)}</td><td class="td-num num" style="color:var(--teal-dark)">${(d[reg + '_contrib'] || 0).toFixed(2)}</td>`
+              ).join('');
+              return `<tr${i === 0 ? ' style="background:var(--mint)"' : ''}>
+                <td style="font-weight:800;color:${i < 3 ? 'var(--teal-deep)' : 'var(--muted)'}">${i + 1}</td>
+                <td style="font-weight:600">${esc(d.oferente)}</td>
+                ${regTds}
+                <td class="td-num num" style="font-weight:800;color:var(--teal-deep)">${d.notaPais.toFixed(2)}</td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+  $('rk2DetailTables').innerHTML = detailHtml;
+}
+
+/* ============================================================================
    EVENTOS
 ============================================================================ */
 document.addEventListener('DOMContentLoaded', () => {
@@ -1645,6 +1905,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('tabRespuestas').addEventListener('click', () => mostrarTab('respuestas'));
   $('tabDashboard').addEventListener('click', () => mostrarTab('dashboard'));
   $('tabRanking').addEventListener('click', () => mostrarTab('ranking'));
+  $('tabRanking2').addEventListener('click', () => mostrarTab('ranking2'));
 
   ['fPais','fDesde','fHasta'].forEach((id) => $(id).addEventListener('change', renderRespuestas));
   $('fBuscar').addEventListener('input', renderRespuestas);
@@ -1676,6 +1937,8 @@ document.addEventListener('DOMContentLoaded', () => {
   $('rkTipo').addEventListener('change', renderRanking);
   $('rkRegion').addEventListener('change', renderRanking);
   $('rkFormRegion').addEventListener('change', renderRanking);
+  $('rk2Region').addEventListener('change', renderRanking2);
+  $('rk2Tipo').addEventListener('change', renderRanking2);
 
   // Buscador de rutas
   const rkSearchInput = $('rkRutaSearch');
