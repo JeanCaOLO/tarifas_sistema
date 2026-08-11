@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+﻿atema<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -1686,7 +1686,7 @@ function renderRanking() {
 const RK2_CONFIG = {
   CA: {
     regionPesos: { America: 7, Europa: 3, 'Asia Puertos Base': 70, Asia: 20 },
-    paisPesos: { CR: 52, SV: 27, GT: 22 }
+    paisPesos: { CR: 52, SV: 26, GT: 21 }
   },
   VE: {
     regionPesos: { America: 13, Europa: 2, 'Asia Puertos Base': 65, Asia: 20 },
@@ -1831,6 +1831,7 @@ function renderRanking2() {
       ${paisTds}
       <td class="td-num num" style="font-weight:800;color:var(--teal-deep)"><span class="tt">${row.notaFinal.toFixed(2)}<span class="tt-box">${tipTotal}</span></span></td>
     </tr>`;
+  }).join('');
   }).join('');
 
   // Gráfico
