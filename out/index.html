@@ -806,7 +806,7 @@ function descargarPlantilla() {
   const headers = [
     'Origen','Región','Destino',
     'Días Libres en Origen','Días Libres en Destino',
-    'Naviera(s)','Tiempo de tránsito','Puerto de Arribo',
+    'Naviera(s)','Tiempo de tránsito','Puerto de Arribo (ver hoja Puertos)',
     'Tarifa 20" STD (USD)','Tarifa 40" STD (USD)','Tarifa 40" HC (USD)'
   ];
 
@@ -821,10 +821,17 @@ function descargarPlantilla() {
   // Anchos de columna
   ws['!cols'] = [
     {wch:28},{wch:16},{wch:14},{wch:16},{wch:16},
-    {wch:22},{wch:18},{wch:22},{wch:16},{wch:16},{wch:16}
+    {wch:22},{wch:18},{wch:34},{wch:16},{wch:16},{wch:16}
   ];
 
   XLSX.utils.book_append_sheet(wb, ws, 'Tarifas');
+
+  // Hoja auxiliar con lista de puertos válidos
+  const puertosData = [['Puertos de Arribo válidos'], ...PUERTOS.map((p) => [p])];
+  const wsPuertos = XLSX.utils.aoa_to_sheet(puertosData);
+  wsPuertos['!cols'] = [{wch:36}];
+  XLSX.utils.book_append_sheet(wb, wsPuertos, 'Puertos');
+
   XLSX.writeFile(wb, `Plantilla_Tarifas_${paisActual.code}.xlsx`);
 }
 
