@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --teal:#00B497;        /* banner del Anexo B */
@@ -348,6 +349,11 @@
       <div class="section-head">
         <h3>Tarifas por ruta</h3>
         <span class="note">Completa solo las rutas que cotizas · Tarifas en USD</span>
+        <span style="flex:1"></span>
+        <button type="button" class="btn btn-ghost" id="btnDescargarPlantilla" style="font-size:13px;padding:7px 12px;">📥 Descargar plantilla Excel</button>
+        <label class="btn btn-ghost" style="font-size:13px;padding:7px 12px;cursor:pointer;">📤 Cargar Excel
+          <input type="file" id="btnCargarExcel" accept=".xlsx,.xls" hidden>
+        </label>
       </div>
       <div class="table-scroll" tabindex="0" aria-label="Tabla de tarifas por ruta">
         <table class="matriz">
@@ -595,6 +601,106 @@ function switchView(view) {
 /* ============================================================================
    VISTA · Formulario
 ============================================================================ */
+const DRAFT_KEY_PREFIX = 'rfp_draft_';
+
+function getDraftKey() {
+  return paisActual ? DRAFT_KEY_PREFIX + paisActual.code : null;
+}
+
+function guardarBorrador() {
+  const key = getDraftKey();
+  if (!key) return;
+  const draft = {
+    oferente: $('inpOferente').value,
+    email: $('inpEmail').value,
+    regionCA: $('chkCA').checked,
+    regionVE: $('chkVE').checked,
+    condiciones: {
+      c_vigencia_del: $('c_vigencia_del').value,
+      c_vigencia_al: $('c_vigencia_al').value,
+      c_tarifas_incluyen: $('c_tarifas_incluyen').value,
+      c_tarifas_no_incluyen: $('c_tarifas_no_incluyen').value,
+      c_herramienta_seguimiento: $('c_herramienta_seguimiento').value,
+      c_credito_dias: $('c_credito_dias').value,
+      c_observaciones: $('c_observaciones').value,
+      g_impresion_bl: $('g_impresion_bl').value,
+      g_retiro_vacio: $('g_retiro_vacio').value,
+      g_demora_contenedor: $('g_demora_contenedor').value,
+      g_demora_chasis: $('g_demora_chasis').value,
+      g_chasis_3_ejes: $('g_chasis_3_ejes').value,
+      g_estadias: $('g_estadias').value
+    },
+    filas: filas,
+    timestamp: Date.now()
+  };
+  try { localStorage.setItem(key, JSON.stringify(draft)); } catch (_) {}
+}
+
+function cargarBorrador() {
+  const key = getDraftKey();
+  if (!key) return null;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (_) { return null; }
+}
+
+function eliminarBorrador() {
+  const key = getDraftKey();
+  if (key) try { localStorage.removeItem(key); } catch (_) {}
+}
+
+function restaurarBorrador(draft) {
+  if (!draft) return;
+  $('inpOferente').value = draft.oferente || '';
+  $('inpEmail').value = draft.email || '';
+  $('chkCA').checked = !!draft.regionCA;
+  $('chkVE').checked = !!draft.regionVE;
+  if (draft.condiciones) {
+    Object.entries(draft.condiciones).forEach(([id, val]) => {
+      if ($(id)) $(id).value = val || '';
+    });
+  }
+  if (draft.filas && draft.filas.length === filas.length) {
+    for (let i = 0; i < filas.length; i++) {
+      Object.assign(filas[i], {
+        dias_libres_origen: draft.filas[i].dias_libres_origen || '',
+        dias_libres_destino: draft.filas[i].dias_libres_destino || '',
+        navieras: draft.filas[i].navieras || '',
+        tiempo_transito: draft.filas[i].tiempo_transito || '',
+        puerto_arribo: draft.filas[i].puerto_arribo || '',
+        tarifa_20_std: draft.filas[i].tarifa_20_std || '',
+        tarifa_40_std: draft.filas[i].tarifa_40_std || '',
+        tarifa_40_hc: draft.filas[i].tarifa_40_hc || ''
+      });
+    }
+  }
+  renderMatriz();
+  // Rellenar inputs con valores restaurados
+  for (let i = 0; i < filas.length; i++) {
+    const tr = $('matrizBody').children[i];
+    if (!tr) continue;
+    const inputs = tr.querySelectorAll('input');
+    const selects = tr.querySelectorAll('select');
+    if (inputs[0]) inputs[0].value = filas[i].dias_libres_origen;
+    if (inputs[1]) inputs[1].value = filas[i].dias_libres_destino;
+    if (inputs[2]) inputs[2].value = filas[i].navieras;
+    if (inputs[3]) inputs[3].value = filas[i].tiempo_transito;
+    if (selects[0]) selects[0].value = filas[i].puerto_arribo;
+    if (inputs[4]) inputs[4].value = filas[i].tarifa_20_std;
+    if (inputs[5]) inputs[5].value = filas[i].tarifa_40_std;
+    if (inputs[6]) inputs[6].value = filas[i].tarifa_40_hc;
+  }
+  updateProgress();
+}
+
+let autoSaveTimer = null;
+function programarAutoSave() {
+  if (autoSaveTimer) clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(guardarBorrador, 1500);
+}
+
 function openForm(code) {
   paisActual = PAISES.find((p) => p.code === code);
   if (!paisActual) return;
@@ -619,6 +725,19 @@ function openForm(code) {
   renderMatriz();
   updateProgress();
   switchView('form');
+
+  // Verificar si hay un borrador guardado
+  const draft = cargarBorrador();
+  if (draft) {
+    const hace = Math.round((Date.now() - draft.timestamp) / 60000);
+    const tiempo = hace < 1 ? 'hace menos de un minuto' : hace < 60 ? `hace ${hace} min` : `hace ${Math.round(hace / 60)}h`;
+    const oferLabel = draft.oferente ? ` (${draft.oferente})` : '';
+    if (confirm(`Se encontró un borrador guardado${oferLabel} — ${tiempo}.\n\n¿Deseas restaurar los datos que tenías?`)) {
+      restaurarBorrador(draft);
+    } else {
+      eliminarBorrador();
+    }
+  }
 }
 
 function renderMatriz() {
@@ -657,6 +776,7 @@ $('matrizBody') && document.addEventListener('input', (ev) => {
   if (i === undefined || !f) return;
   filas[Number(i)][f] = t.value;
   if (f.startsWith('tarifa_')) updateProgress();
+  programarAutoSave();
 });
 
 $('matrizBody') && document.addEventListener('change', (ev) => {
@@ -665,6 +785,7 @@ $('matrizBody') && document.addEventListener('change', (ev) => {
   const i = t.dataset.i, f = t.dataset.f;
   if (i === undefined || !f) return;
   filas[Number(i)][f] = t.value;
+  programarAutoSave();
 });
 
 const filaCotizada = (f) =>
@@ -673,6 +794,120 @@ const filaCotizada = (f) =>
 function updateProgress() {
   const n = filas.filter(filaCotizada).length;
   $('progressText').textContent = `${n} / ${ORIGENES.length} rutas cotizadas`;
+}
+
+/* ============================================================================
+   PLANTILLA EXCEL · Descargar y Cargar
+============================================================================ */
+function descargarPlantilla() {
+  if (!window.XLSX) { showMsg('Error', 'La librería XLSX no se cargó correctamente.'); return; }
+  if (!paisActual) return;
+
+  const headers = [
+    'Origen','Región','Destino',
+    'Días Libres en Origen','Días Libres en Destino',
+    'Naviera(s)','Tiempo de tránsito','Puerto de Arribo',
+    'Tarifa 20" STD (USD)','Tarifa 40" STD (USD)','Tarifa 40" HC (USD)'
+  ];
+
+  const data = [headers];
+  for (const [origen, region] of ORIGENES) {
+    data.push([origen, region, paisActual.nombre, '', '', '', '', '', '', '', '']);
+  }
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(data);
+
+  // Anchos de columna
+  ws['!cols'] = [
+    {wch:28},{wch:16},{wch:14},{wch:16},{wch:16},
+    {wch:22},{wch:18},{wch:22},{wch:16},{wch:16},{wch:16}
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Tarifas');
+  XLSX.writeFile(wb, `Plantilla_Tarifas_${paisActual.code}.xlsx`);
+}
+
+function cargarPlantilla(file) {
+  if (!file) return;
+  if (!window.XLSX) { showMsg('Error', 'La librería XLSX no se cargó correctamente.'); return; }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+      if (rows.length < 2) {
+        showMsg('Archivo vacío', 'El archivo no contiene datos de tarifas.');
+        return;
+      }
+
+      // Detectar headers (primera fila)
+      const hdr = rows[0].map((h) => String(h).toLowerCase().trim());
+      const colMap = {
+        origen: hdr.findIndex((h) => h.includes('origen')),
+        dias_libres_origen: hdr.findIndex((h) => h.includes('días') && h.includes('origen') || h.includes('dias') && h.includes('origen')),
+        dias_libres_destino: hdr.findIndex((h) => h.includes('días') && h.includes('destino') || h.includes('dias') && h.includes('destino')),
+        navieras: hdr.findIndex((h) => h.includes('naviera')),
+        tiempo_transito: hdr.findIndex((h) => h.includes('tránsito') || h.includes('transito')),
+        puerto_arribo: hdr.findIndex((h) => h.includes('puerto')),
+        tarifa_20_std: hdr.findIndex((h) => h.includes('20')),
+        tarifa_40_std: hdr.findIndex((h) => h.includes('40') && h.includes('std')),
+        tarifa_40_hc: hdr.findIndex((h) => h.includes('40') && h.includes('hc'))
+      };
+
+      let cargadas = 0;
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r];
+        const origen = String(row[colMap.origen] || '').trim();
+        if (!origen) continue;
+
+        // Buscar la fila correspondiente
+        const idx = filas.findIndex((f) => f.origen.toLowerCase() === origen.toLowerCase());
+        if (idx < 0) continue;
+
+        const val = (col) => col >= 0 ? String(row[col] ?? '').trim() : '';
+
+        if (val(colMap.dias_libres_origen)) filas[idx].dias_libres_origen = val(colMap.dias_libres_origen);
+        if (val(colMap.dias_libres_destino)) filas[idx].dias_libres_destino = val(colMap.dias_libres_destino);
+        if (val(colMap.navieras)) filas[idx].navieras = val(colMap.navieras);
+        if (val(colMap.tiempo_transito)) filas[idx].tiempo_transito = val(colMap.tiempo_transito);
+        if (val(colMap.puerto_arribo)) filas[idx].puerto_arribo = val(colMap.puerto_arribo);
+        if (val(colMap.tarifa_20_std)) filas[idx].tarifa_20_std = val(colMap.tarifa_20_std);
+        if (val(colMap.tarifa_40_std)) filas[idx].tarifa_40_std = val(colMap.tarifa_40_std);
+        if (val(colMap.tarifa_40_hc)) filas[idx].tarifa_40_hc = val(colMap.tarifa_40_hc);
+        cargadas++;
+      }
+
+      // Re-renderizar la matriz con los datos cargados
+      renderMatriz();
+      // Rellenar los inputs con los valores cargados
+      for (let i = 0; i < filas.length; i++) {
+        const tr = $('matrizBody').children[i];
+        if (!tr) continue;
+        const inputs = tr.querySelectorAll('input');
+        const selects = tr.querySelectorAll('select');
+        // inputs: dias_orig, dias_dest, navieras, transito, t20, t40, thc
+        // select: puerto_arribo
+        if (inputs[0]) inputs[0].value = filas[i].dias_libres_origen;
+        if (inputs[1]) inputs[1].value = filas[i].dias_libres_destino;
+        if (inputs[2]) inputs[2].value = filas[i].navieras;
+        if (inputs[3]) inputs[3].value = filas[i].tiempo_transito;
+        // Puerto arribo is a select
+        if (selects[0]) selects[0].value = filas[i].puerto_arribo;
+        if (inputs[4]) inputs[4].value = filas[i].tarifa_20_std;
+        if (inputs[5]) inputs[5].value = filas[i].tarifa_40_std;
+        if (inputs[6]) inputs[6].value = filas[i].tarifa_40_hc;
+      }
+      updateProgress();
+      showMsg('Plantilla cargada', `Se importaron datos de <b>${cargadas}</b> rutas desde el archivo Excel.`, false);
+    } catch (err) {
+      showMsg('Error al leer archivo', 'No se pudo procesar el archivo Excel.<br><small>' + esc(err.message || '') + '</small>');
+    }
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 /* ============================================================================
@@ -773,6 +1008,7 @@ async function enviar() {
     $('successFolio').textContent = 'Folio ' + String(data).slice(0, 8).toUpperCase();
     $('successDetail').textContent =
       `${$('inpOferente').value.trim()} · ${paisActual.nombre} · ${filas.filter(filaCotizada).length} rutas cotizadas`;
+    eliminarBorrador();
     switchView('success');
   } catch (err) {
     const detalle = (err && err.message) ? esc(err.message) : 'Error de conexión.';
@@ -801,6 +1037,21 @@ document.addEventListener('DOMContentLoaded', () => {
   $('btnConfirmSend').addEventListener('click', enviar);
   $('btnMsgOk').addEventListener('click', () => $('msgOverlay').classList.remove('open'));
   $('btnAgain').addEventListener('click', () => switchView('select'));
+  $('btnDescargarPlantilla').addEventListener('click', descargarPlantilla);
+  $('btnCargarExcel').addEventListener('change', (ev) => {
+    cargarPlantilla(ev.target.files[0]);
+    ev.target.value = '';
+  });
+
+  // Autosave en campos de cabecera y condiciones
+  ['inpOferente','inpEmail','c_vigencia_del','c_vigencia_al','c_tarifas_incluyen',
+   'c_tarifas_no_incluyen','c_herramienta_seguimiento','c_credito_dias','c_observaciones',
+   'g_impresion_bl','g_retiro_vacio','g_demora_contenedor','g_demora_chasis','g_chasis_3_ejes','g_estadias'
+  ].forEach((id) => {
+    $(id).addEventListener('input', programarAutoSave);
+  });
+  $('chkCA').addEventListener('change', programarAutoSave);
+  $('chkVE').addEventListener('change', programarAutoSave);
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') {
       $('confirmOverlay').classList.remove('open');
