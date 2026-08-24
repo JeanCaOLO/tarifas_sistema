@@ -1,5 +1,4 @@
-import { useState, useEffect, createContext, useContext } from 'react'
-import { Routes, Route, useNavigate } from 'react-router-dom'
+import { useState, useEffect, createContext } from 'react'
 import { supabase } from '../supabase'
 import AdminLogin from '../components/Admin/AdminLogin'
 import AdminTopbar from '../components/Admin/AdminTopbar'
@@ -12,7 +11,8 @@ export const AdminContext = createContext(null)
 
 export default function AdminPage() {
   const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [checking, setChecking] = useState(true)
   const [respuestas, setRespuestas] = useState([])
   const [tarifas, setTarifas] = useState([])
   const [tab, setTab] = useState('respuestas')
@@ -41,7 +41,7 @@ export default function AdminPage() {
       setRespuestas(subs)
       setTarifas(rates)
     } catch (e) {
-      console.error(e)
+      console.error('Error cargando datos:', e)
     } finally {
       setLoading(false)
     }
@@ -72,10 +72,16 @@ export default function AdminPage() {
         setUser(session.user.email)
         cargarDatos()
       }
-      setLoading(false)
+      setChecking(false)
+    }).catch(() => {
+      setChecking(false)
     })
   }, [])
 
+  // Still checking session
+  if (checking) return <div className="loading"><span className="spin" /><br />Verificando sesión…</div>
+
+  // Not logged in
   if (!user) return <AdminLogin onLogin={login} />
 
   const ctx = { user, respuestas, tarifas, loading, cargarDatos, logout, tab, setTab }
