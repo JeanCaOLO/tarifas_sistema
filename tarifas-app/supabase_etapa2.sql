@@ -309,3 +309,104 @@ GRANT SELECT ON v_rfp_tarifas_r2 TO authenticated;
 -- SELECT * FROM v_rfp_respuestas_r2 LIMIT 1;
 -- SELECT * FROM v_rfp_tarifas_r2 LIMIT 1;
 -- ============================================================
+
+
+-- ============================================================
+-- 7. TABLA: rfp_condiciones_operativas_r2
+-- (Formulario aparte, se llena una vez por oferente)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS rfp_condiciones_operativas_r2 (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  -- Identificación del oferente
+  oferente TEXT NOT NULL,
+  email_contacto TEXT,
+  region JSONB, -- ["CA"], ["VE"], o ["CA","VE"]
+
+  -- Crédito y facturación
+  credito_dias NUMERIC,
+  facturacion_aplica TEXT, -- 'arribo' o 'salida'
+
+  -- Condiciones operativas
+  herramienta_seguimiento TEXT,
+  herramienta_descripcion TEXT,
+  integracion_api TEXT,
+  recursos_operativos TEXT,
+  observaciones TEXT,
+
+  -- Gastos FOB puertos base China (JSONB)
+  gastos_fob JSONB,
+
+  -- Representación / Oficinas propias (JSONB)
+  representacion JSONB,
+
+  -- Observaciones FOB
+  obs_fob TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_rfp_condop_r2_oferente ON rfp_condiciones_operativas_r2(oferente);
+
+-- ============================================================
+-- 8. VISTA: v_rfp_condiciones_operativas_r2
+-- ============================================================
+CREATE OR REPLACE VIEW v_rfp_condiciones_operativas_r2 AS
+SELECT * FROM rfp_condiciones_operativas_r2;
+
+-- ============================================================
+-- 9. FUNCIÓN RPC: submit_condiciones_operativas_r2
+-- ============================================================
+CREATE OR REPLACE FUNCTION submit_condiciones_operativas_r2(p JSONB)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_id UUID;
+BEGIN
+  INSERT INTO rfp_condiciones_operativas_r2 (
+    oferente, email_contacto, region,
+    credito_dias, facturacion_aplica,
+    herramienta_seguimiento, herramienta_descripcion,
+    integracion_api, recursos_operativos, observaciones,
+    gastos_fob, representacion, obs_fob
+  ) VALUES (
+    p->>'oferente',
+    p->>'email_contacto',
+    p->'region',
+    (p->>'credito_dias')::NUMERIC,
+    p->>'facturacion_aplica',
+    p->>'herramienta_seguimiento',
+    p->>'herramienta_descripcion',
+    p->>'integracion_api',
+    p->>'recursos_operativos',
+    p->>'observaciones',
+    p->'gastos_fob',
+    p->'representacion',
+    p->>'obs_fob'
+  )
+  RETURNING id INTO v_id;
+
+  RETURN v_id;
+END;
+$$;
+
+-- RLS
+ALTER TABLE rfp_condiciones_operativas_r2 ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Inserción pública condop R2" ON rfp_condiciones_operativas_r2
+  FOR INSERT TO anon, authenticated
+  WITH CHECK (true);
+
+CREATE POLICY "Lectura autenticada condop R2" ON rfp_condiciones_operativas_r2
+  FOR SELECT TO authenticated
+  USING (true);
+
+CREATE POLICY "Eliminación autenticada condop R2" ON rfp_condiciones_operativas_r2
+  FOR DELETE TO authenticated
+  USING (true);
+
+-- Permisos
+GRANT EXECUTE ON FUNCTION submit_condiciones_operativas_r2(JSONB) TO anon;
+GRANT EXECUTE ON FUNCTION submit_condiciones_operativas_r2(JSONB) TO authenticated;
+GRANT SELECT ON v_rfp_condiciones_operativas_r2 TO authenticated;

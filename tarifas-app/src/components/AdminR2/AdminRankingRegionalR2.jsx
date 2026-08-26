@@ -4,11 +4,24 @@ import { calcularRankingRegionalR2 } from '../../utils/rankingR2'
 import { PAISES_MAP } from '../../constantsR2'
 
 export default function AdminRankingRegionalR2() {
-  const { respuestasR2, tarifasR2 } = useContext(AdminContext)
+  const { respuestasR2, tarifasR2, condOpR2 } = useContext(AdminContext)
   const [formRegion, setFormRegion] = useState('CA')
   const [campo, setCampo] = useState('tarifa_40_std')
 
-  const respuestas = respuestasR2 || []
+  // Enriquecer respuestas R2 con datos de condiciones operativas (por oferente)
+  const respuestas = (respuestasR2 || []).map((r) => {
+    const condOp = (condOpR2 || []).find((c) =>
+      c.oferente.trim().toLowerCase() === r.oferente.trim().toLowerCase()
+    )
+    if (!condOp) return r
+    return {
+      ...r,
+      credito_dias: r.credito_dias ?? condOp.credito_dias,
+      facturacion_aplica: r.facturacion_aplica ?? condOp.facturacion_aplica,
+      gastos_fob: r.gastos_fob ?? condOp.gastos_fob,
+      representacion: r.representacion ?? condOp.representacion
+    }
+  })
   const tarifas = tarifasR2 || []
 
   const { notaFinal, paisDetalles, paisPesos, regionPesos, paisesDestino } = calcularRankingRegionalR2(tarifas, respuestas, { formRegion, campo })

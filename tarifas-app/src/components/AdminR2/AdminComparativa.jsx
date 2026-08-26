@@ -9,7 +9,7 @@ import { PAISES_MAP } from '../../constantsR2'
  * para el mismo oferente, permitiendo ver cómo cambia su posición.
  */
 export default function AdminComparativa() {
-  const { respuestas, tarifas, respuestasR2, tarifasR2 } = useContext(AdminContext)
+  const { respuestas, tarifas, respuestasR2, tarifasR2, condOpR2 } = useContext(AdminContext)
   const [pais, setPais] = useState('')
   const [campo, setCampo] = useState('tarifa_40_std')
   const [formRegion, setFormRegion] = useState('')
@@ -17,7 +17,20 @@ export default function AdminComparativa() {
 
   const r1Resp = respuestas || []
   const r1Tarif = tarifas || []
-  const r2Resp = respuestasR2 || []
+  // Enriquecer respuestas R2 con condiciones operativas
+  const r2Resp = (respuestasR2 || []).map((r) => {
+    const condOp = (condOpR2 || []).find((c) =>
+      c.oferente.trim().toLowerCase() === r.oferente.trim().toLowerCase()
+    )
+    if (!condOp) return r
+    return {
+      ...r,
+      credito_dias: r.credito_dias ?? condOp.credito_dias,
+      facturacion_aplica: r.facturacion_aplica ?? condOp.facturacion_aplica,
+      gastos_fob: r.gastos_fob ?? condOp.gastos_fob,
+      representacion: r.representacion ?? condOp.representacion
+    }
+  })
   const r2Tarif = tarifasR2 || []
 
   // Calcular rankings de ambas etapas

@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import {
   PAISES, ORIGENES, PUERTOS, RATE_FIELDS,
-  PUERTOS_BASE_CHINA, CARGOS_FOB, CONTENEDORES_FOB,
   REGIONES_ALLOCATION, FACTURACION_OPCIONES
 } from '../constantsR2'
 import { numOrNull } from '../utils/format'
@@ -22,8 +21,6 @@ export default function FormularioR2Page() {
   const [regionVE, setRegionVE] = useState(false)
   const [condiciones, setCondiciones] = useState({})
   const [allocation, setAllocation] = useState({})
-  const [gastosFob, setGastosFob] = useState({})
-  const [representacion, setRepresentacion] = useState({})
   const [facturacion, setFacturacion] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [folio, setFolio] = useState('')
@@ -34,8 +31,8 @@ export default function FormularioR2Page() {
 
   const getData = useCallback(() => ({
     oferente, email, regionCA, regionVE, condiciones, filas,
-    allocation, gastosFob, representacion, facturacion
-  }), [oferente, email, regionCA, regionVE, condiciones, filas, allocation, gastosFob, representacion, facturacion])
+    allocation, facturacion
+  }), [oferente, email, regionCA, regionVE, condiciones, filas, allocation, facturacion])
 
   const { scheduleSave } = useAutoSave(paisActual ? DRAFT_PREFIX_R2 + paisActual.code : null, getData)
 
@@ -56,8 +53,6 @@ export default function FormularioR2Page() {
     setRegionVE(false)
     setCondiciones({})
     setAllocation({})
-    setGastosFob({})
-    setRepresentacion({})
     setFacturacion('')
     setErrors({})
     setView('form')
@@ -74,8 +69,6 @@ export default function FormularioR2Page() {
         setRegionVE(!!draft.regionVE)
         setCondiciones(draft.condiciones || {})
         setAllocation(draft.allocation || {})
-        setGastosFob(draft.gastosFob || {})
-        setRepresentacion(draft.representacion || {})
         setFacturacion(draft.facturacion || '')
         if (draft.filas && draft.filas.length === newFilas.length) {
           setFilas(draft.filas)
@@ -102,22 +95,6 @@ export default function FormularioR2Page() {
 
   function updateAllocation(key, value) {
     setAllocation((prev) => ({ ...prev, [key]: value }))
-    scheduleSave()
-  }
-
-  function updateFob(puerto, cargoKey, contenedor, value) {
-    setGastosFob((prev) => {
-      const copy = { ...prev }
-      if (!copy[puerto]) copy[puerto] = {}
-      if (!copy[puerto][cargoKey]) copy[puerto][cargoKey] = {}
-      copy[puerto][cargoKey][contenedor] = value
-      return copy
-    })
-    scheduleSave()
-  }
-
-  function updateRepre(key, value) {
-    setRepresentacion((prev) => ({ ...prev, [key]: value }))
     scheduleSave()
   }
 
@@ -168,10 +145,6 @@ export default function FormularioR2Page() {
         vigencia_al: condiciones.vigencia_al || null,
         tarifas_incluyen: condiciones.tarifas_incluyen?.trim() || null,
         tarifas_no_incluyen: condiciones.tarifas_no_incluyen?.trim() || null,
-        herramienta_seguimiento: condiciones.herramienta_seguimiento?.trim() || null,
-        herramienta_descripcion: condiciones.herramienta_descripcion?.trim() || null,
-        integracion_api: condiciones.integracion_api?.trim() || null,
-        recursos_operativos: condiciones.recursos_operativos?.trim() || null,
         credito_dias: numOrNull(condiciones.credito_dias),
         facturacion_aplica: facturacion || null,
         observaciones: condiciones.observaciones?.trim() || null,
@@ -184,8 +157,6 @@ export default function FormularioR2Page() {
         allocation_europa: numOrNull(allocation.europa),
         allocation_asia_pb: numOrNull(allocation.asia_puertos_base),
         allocation_asia_restante: numOrNull(allocation.asia_restante),
-        gastos_fob: gastosFob,
-        representacion: representacion,
         tarifas: tarifasPayload
       }
 
@@ -207,7 +178,7 @@ export default function FormularioR2Page() {
     if (!file) return
     e.target.value = ''
     try {
-      const { tarifas: rows, gastosFob: fobImport } = await leerPlantillaCompletaR2(file)
+      const { tarifas: rows } = await leerPlantillaCompletaR2(file)
       let count = 0
       setFilas((prev) => {
         const copy = [...prev]
@@ -226,11 +197,8 @@ export default function FormularioR2Page() {
         }
         return copy
       })
-      if (fobImport) {
-        setGastosFob(fobImport)
-      }
       scheduleSave()
-      setMsg({ title: 'Plantilla cargada', body: `Se importaron datos de ${count} rutas${fobImport ? ' + gastos FOB' : ''}.`, error: false })
+      setMsg({ title: 'Plantilla cargada', body: `Se importaron datos de ${count} rutas.`, error: false })
     } catch (err) {
       setMsg({ title: 'Error', body: err.message, error: true })
     }
@@ -266,6 +234,15 @@ export default function FormularioR2Page() {
               </span>
             </button>
           ))}
+        </div>
+        <div style={{ padding: '0 28px 28px' }}>
+          <Link to="/ronda2/condiciones-operativas" className="country-card" style={{ textDecoration: 'none', borderLeftColor: '#F2B33D' }}>
+            <span className="code" style={{ background: '#8A5A00' }}>CO</span>
+            <span>
+              <div className="t">Condiciones Operativas</div>
+              <div className="s">Crédito, FOB, Representación · Una vez por oferente</div>
+            </span>
+          </Link>
         </div>
       </section>
     </div>
@@ -434,92 +411,19 @@ export default function FormularioR2Page() {
           ))}
         </div>
 
-        {/* CONDICIONES OPERATIVAS */}
-        <div className="cond-bar">Condiciones Operativas</div>
-        <div className="cond-grid">
-          <div className="cond-row"><div className="lbl">Herramienta para seguimiento</div><div className="val"><input type="text" value={condiciones.herramienta_seguimiento || ''} onChange={(e) => updateCond('herramienta_seguimiento', e.target.value)} placeholder="Nombre de la herramienta" /></div></div>
-          <div className="cond-row"><div className="lbl">¿En qué consiste la herramienta?</div><div className="val"><textarea value={condiciones.herramienta_descripcion || ''} onChange={(e) => updateCond('herramienta_descripcion', e.target.value)} placeholder="Descripción y cómo agrega valor" /></div></div>
-          <div className="cond-row"><div className="lbl">¿Integración vía API u otro?</div><div className="val"><input type="text" value={condiciones.integracion_api || ''} onChange={(e) => updateCond('integracion_api', e.target.value)} placeholder="Sí / No / Descripción" /></div></div>
-          <div className="cond-row"><div className="lbl">Recursos operativos (estrategia)</div><div className="val"><textarea value={condiciones.recursos_operativos || ''} onChange={(e) => updateCond('recursos_operativos', e.target.value)} placeholder="Defina su estrategia para control en origen y destino" /></div></div>
-        </div>
 
-        {/* GASTOS FOB */}
-        <div className="cond-bar">Cargos Locales Puertos Base de China — FOB (CNY)</div>
-        <div className="cond-sub">Completar por cada puerto base los cargos locales en términos FOB</div>
-        {PUERTOS_BASE_CHINA.map((puerto) => (
-          <div key={puerto} className="fob-puerto-section">
-            <div className="fob-puerto-header">{puerto}, China</div>
-            <div className="table-scroll">
-              <table className="matriz fob-table">
-                <thead>
-                  <tr>
-                    <th style={{ minWidth: 180 }}>Cargo</th>
-                    <th className="num">20GP (CNY)</th>
-                    <th className="num">40GP (CNY)</th>
-                    <th className="num">40HQ (CNY)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {CARGOS_FOB.map((cargo) => (
-                    <tr key={cargo.key}>
-                      <td className="fix">{cargo.label}</td>
-                      {CONTENEDORES_FOB.map((cont) => (
-                        <td key={cont} className="num">
-                          <input
-                            type="number" min="0" step="0.01"
-                            value={(gastosFob[puerto]?.[cargo.key]?.[cont]) || ''}
-                            onChange={(e) => updateFob(puerto, cargo.key, cont, e.target.value)}
-                            placeholder="0"
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ))}
 
-        {/* REPRESENTACIÓN / OFICINAS */}
-        <div className="cond-bar">Representación / Oficinas (propias)</div>
-        <div className="cond-grid">
-          <div className="cond-row">
-            <div className="lbl">Puertos Base China</div>
-            <div className="val">
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px 20px' }}>
-                {PUERTOS_BASE_CHINA.map((p) => (
-                  <label key={p} className="cb-label">
-                    <input
-                      type="checkbox"
-                      checked={!!representacion[`china_${p.toLowerCase()}`]}
-                      onChange={(e) => updateRepre(`china_${p.toLowerCase()}`, e.target.checked)}
-                    />
-                    {p}
-                  </label>
-                ))}
-              </div>
-            </div>
+        {/* Link a Condiciones Operativas */}
+        <div style={{ margin: '22px 28px', padding: '14px 18px', background: 'var(--amber-bg)', border: '1px solid var(--amber-line)', borderRadius: 'var(--radius)' }}>
+          <div style={{ fontWeight: 700, fontSize: 13.5, color: '#8A5A00', marginBottom: 4 }}>
+            Condiciones Operativas, Gastos FOB y Representación
           </div>
-          <div className="cond-row">
-            <div className="lbl">Destino ({paisActual?.nombre})</div>
-            <div className="val">
-              <label className="cb-label">
-                <input
-                  type="checkbox"
-                  checked={!!representacion.destino}
-                  onChange={(e) => updateRepre('destino', e.target.checked)}
-                />
-                Sí, tiene oficina propia en destino
-              </label>
-            </div>
+          <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>
+            Estas secciones se completan una única vez por oferente en un formulario aparte.
           </div>
-        </div>
-
-        {/* Observaciones FOB */}
-        <div className="cond-bar">Observaciones Gastos FOB</div>
-        <div className="cond-grid">
-          <div className="cond-row"><div className="lbl">Observaciones</div><div className="val"><textarea value={condiciones.obs_fob || ''} onChange={(e) => updateCond('obs_fob', e.target.value)} /></div></div>
+          <Link to="/ronda2/condiciones-operativas" className="btn btn-ghost btn-sm">
+            Ir a completar Condiciones Operativas →
+          </Link>
         </div>
 
       </section>

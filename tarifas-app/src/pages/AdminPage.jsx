@@ -22,6 +22,7 @@ export default function AdminPage() {
   const [tarifas, setTarifas] = useState([])
   const [respuestasR2, setRespuestasR2] = useState([])
   const [tarifasR2, setTarifasR2] = useState([])
+  const [condOpR2, setCondOpR2] = useState([])
   const [etapa, setEtapa] = useState('1') // '1' | '2'
   const [tab, setTab] = useState('respuestas')
 
@@ -42,16 +43,18 @@ export default function AdminPage() {
   async function cargarDatos() {
     setLoading(true)
     try {
-      const [subs, rates, subsR2, ratesR2] = await Promise.all([
+      const [subs, rates, subsR2, ratesR2, condOp] = await Promise.all([
         fetchAll('v_rfp_respuestas', { col: 'created_at', asc: false }),
         fetchAll('v_rfp_tarifas', { col: 'id', asc: true }),
         fetchAll('v_rfp_respuestas_r2', { col: 'created_at', asc: false }).catch(() => []),
-        fetchAll('v_rfp_tarifas_r2', { col: 'id', asc: true }).catch(() => [])
+        fetchAll('v_rfp_tarifas_r2', { col: 'id', asc: true }).catch(() => []),
+        fetchAll('v_rfp_condiciones_operativas_r2', { col: 'created_at', asc: false }).catch(() => [])
       ])
       setRespuestas(subs)
       setTarifas(rates)
       setRespuestasR2(subsR2)
       setTarifasR2(ratesR2)
+      setCondOpR2(condOp)
     } catch (e) {
       console.error('Error cargando datos:', e)
     } finally {
@@ -78,6 +81,7 @@ export default function AdminPage() {
     setTarifas([])
     setRespuestasR2([])
     setTarifasR2([])
+    setCondOpR2([])
   }
 
   useEffect(() => {
@@ -108,7 +112,7 @@ export default function AdminPage() {
   if (!user) return <AdminLogin onLogin={login} />
 
   const ctx = {
-    user, respuestas, tarifas, respuestasR2, tarifasR2,
+    user, respuestas, tarifas, respuestasR2, tarifasR2, condOpR2,
     loading, cargarDatos, logout, tab, setTab, etapa, setEtapa: handleEtapaChange
   }
 
