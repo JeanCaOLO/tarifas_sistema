@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
+
 import { PAISES, ORIGENES, PUERTOS, RATE_FIELDS } from '../constants'
 import { numOrNull } from '../utils/format'
 import { descargarPlantilla, leerPlantilla } from '../utils/excel'
@@ -192,6 +193,10 @@ export default function FormularioPage() {
           <a className="btn-admin" href="/admin">Admin</a>
         </div>
         <div className="subbar"><span>Request For Proposal 2026-2027</span><span className="anexo">Anexo B</span></div>
+        <div className="r2-badge-bar">
+          <span className="r2-badge" style={{ background: 'var(--mint)', color: 'var(--teal-deep)', border: '1px solid var(--line)' }}>ETAPA 1</span>
+          <Link to="/ronda2" className="btn btn-ghost btn-sm">Ir a Etapa 2 (Ronda 2) →</Link>
+        </div>
         <div className="intro">
           <h2>Selecciona el formulario que vas a completar</h2>
           <p>Cada formulario contiene las 54 rutas de origen y las condiciones comerciales del país de destino.</p>
