@@ -24,8 +24,8 @@ export default function AdminRankingR2() {
       credito_dias: r.credito_dias ?? condOp.credito_dias,
       facturacion_aplica: r.facturacion_aplica ?? condOp.facturacion_aplica,
       herramienta_seguimiento: r.herramienta_seguimiento ?? condOp.herramienta_seguimiento,
-      gastos_fob: r.gastos_fob ?? condOp.gastos_fob,
-      representacion: r.representacion ?? condOp.representacion
+      gastos_fob: r.gastos_fob ?? condOp.gastos_fob
+      // representacion viene del formulario de Etapa 2 (por país)
     }
   })
 

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import {
   PAISES, ORIGENES, PUERTOS, RATE_FIELDS,
-  REGIONES_ALLOCATION, FACTURACION_OPCIONES
+  REGIONES_ALLOCATION, PUERTOS_BASE_CHINA
 } from '../constantsR2'
 import { numOrNull } from '../utils/format'
 import { descargarPlantillaR2, leerPlantillaCompletaR2 } from '../utils/excelR2'
@@ -21,7 +21,7 @@ export default function FormularioR2Page() {
   const [regionVE, setRegionVE] = useState(false)
   const [condiciones, setCondiciones] = useState({})
   const [allocation, setAllocation] = useState({})
-  const [facturacion, setFacturacion] = useState('')
+  const [representacion, setRepresentacion] = useState({})
   const [enviando, setEnviando] = useState(false)
   const [folio, setFolio] = useState('')
   const [showConfirm, setShowConfirm] = useState(false)
@@ -31,8 +31,8 @@ export default function FormularioR2Page() {
 
   const getData = useCallback(() => ({
     oferente, email, regionCA, regionVE, condiciones, filas,
-    allocation, facturacion
-  }), [oferente, email, regionCA, regionVE, condiciones, filas, allocation, facturacion])
+    allocation, representacion
+  }), [oferente, email, regionCA, regionVE, condiciones, filas, allocation, representacion])
 
   const { scheduleSave } = useAutoSave(paisActual ? DRAFT_PREFIX_R2 + paisActual.code : null, getData)
 
@@ -53,7 +53,7 @@ export default function FormularioR2Page() {
     setRegionVE(false)
     setCondiciones({})
     setAllocation({})
-    setFacturacion('')
+    setRepresentacion({})
     setErrors({})
     setView('form')
 
@@ -69,7 +69,7 @@ export default function FormularioR2Page() {
         setRegionVE(!!draft.regionVE)
         setCondiciones(draft.condiciones || {})
         setAllocation(draft.allocation || {})
-        setFacturacion(draft.facturacion || '')
+        setRepresentacion(draft.representacion || {})
         if (draft.filas && draft.filas.length === newFilas.length) {
           setFilas(draft.filas)
         }
@@ -95,6 +95,11 @@ export default function FormularioR2Page() {
 
   function updateAllocation(key, value) {
     setAllocation((prev) => ({ ...prev, [key]: value }))
+    scheduleSave()
+  }
+
+  function updateRepre(key, value) {
+    setRepresentacion((prev) => ({ ...prev, [key]: value }))
     scheduleSave()
   }
 
@@ -145,18 +150,18 @@ export default function FormularioR2Page() {
         vigencia_al: condiciones.vigencia_al || null,
         tarifas_incluyen: condiciones.tarifas_incluyen?.trim() || null,
         tarifas_no_incluyen: condiciones.tarifas_no_incluyen?.trim() || null,
-        credito_dias: numOrNull(condiciones.credito_dias),
-        facturacion_aplica: facturacion || null,
         observaciones: condiciones.observaciones?.trim() || null,
         gasto_impresion_bl: numOrNull(condiciones.g_impresion_bl),
         gasto_retiro_vacio: numOrNull(condiciones.g_retiro_vacio),
         gasto_demora_contenedor_dia: numOrNull(condiciones.g_demora_contenedor),
         gasto_demora_chasis_dia: numOrNull(condiciones.g_demora_chasis),
         gasto_chasis_3_ejes: numOrNull(condiciones.g_chasis_3_ejes),
+        gasto_estadias: numOrNull(condiciones.g_estadias),
         allocation_america: numOrNull(allocation.america),
         allocation_europa: numOrNull(allocation.europa),
         allocation_asia_pb: numOrNull(allocation.asia_puertos_base),
         allocation_asia_restante: numOrNull(allocation.asia_restante),
+        representacion: representacion,
         tarifas: tarifasPayload
       }
 
@@ -386,18 +391,7 @@ export default function FormularioR2Page() {
           <div className="cond-row"><div className="lbl">Demoras contenedor por día</div><div className="val"><div className="money"><span className="cur">$</span><input type="number" min="0" step="0.01" value={condiciones.g_demora_contenedor || ''} onChange={(e) => updateCond('g_demora_contenedor', e.target.value)} /></div></div></div>
           <div className="cond-row"><div className="lbl">Demoras chasis por día</div><div className="val"><div className="money"><span className="cur">$</span><input type="number" min="0" step="0.01" value={condiciones.g_demora_chasis || ''} onChange={(e) => updateCond('g_demora_chasis', e.target.value)} /></div></div></div>
           <div className="cond-row"><div className="lbl">Chasis 3 ejes</div><div className="val"><div className="money"><span className="cur">$</span><input type="number" min="0" step="0.01" value={condiciones.g_chasis_3_ejes || ''} onChange={(e) => updateCond('g_chasis_3_ejes', e.target.value)} /></div></div></div>
-        </div>
-
-        {/* CRÉDITO Y FACTURACIÓN */}
-        <div className="cond-bar">Crédito y Facturación</div>
-        <div className="cond-grid">
-          <div className="cond-row"><div className="lbl">Crédito (días)</div><div className="val"><input type="number" min="0" value={condiciones.credito_dias || ''} onChange={(e) => updateCond('credito_dias', e.target.value)} /></div></div>
-          <div className="cond-row"><div className="lbl">Facturación aplica a partir de</div><div className="val">
-            <select className="inline-select" value={facturacion} onChange={(e) => { setFacturacion(e.target.value); scheduleSave() }}>
-              <option value="">— Seleccionar —</option>
-              {FACTURACION_OPCIONES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div></div>
+          <div className="cond-row"><div className="lbl">Estadías</div><div className="val"><div className="money"><span className="cur">$</span><input type="number" min="0" step="0.01" value={condiciones.g_estadias || ''} onChange={(e) => updateCond('g_estadias', e.target.value)} /></div></div></div>
         </div>
 
         {/* ALLOCATION */}
@@ -411,12 +405,45 @@ export default function FormularioR2Page() {
           ))}
         </div>
 
-
+        {/* REPRESENTACIÓN / OFICINAS */}
+        <div className="cond-bar">Representación / Oficinas (propias)</div>
+        <div className="cond-grid">
+          <div className="cond-row">
+            <div className="lbl">Puertos Base China</div>
+            <div className="val">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px 20px' }}>
+                {PUERTOS_BASE_CHINA.map((p) => (
+                  <label key={p} className="cb-label">
+                    <input
+                      type="checkbox"
+                      checked={!!representacion[`china_${p.toLowerCase()}`]}
+                      onChange={(e) => updateRepre(`china_${p.toLowerCase()}`, e.target.checked)}
+                    />
+                    {p}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="cond-row">
+            <div className="lbl">Destino ({paisActual?.nombre})</div>
+            <div className="val">
+              <label className="cb-label">
+                <input
+                  type="checkbox"
+                  checked={!!representacion.destino}
+                  onChange={(e) => updateRepre('destino', e.target.checked)}
+                />
+                Sí, tiene oficina propia en destino
+              </label>
+            </div>
+          </div>
+        </div>
 
         {/* Link a Condiciones Operativas */}
         <div style={{ margin: '22px 28px', padding: '14px 18px', background: 'var(--amber-bg)', border: '1px solid var(--amber-line)', borderRadius: 'var(--radius)' }}>
           <div style={{ fontWeight: 700, fontSize: 13.5, color: '#8A5A00', marginBottom: 4 }}>
-            Condiciones Operativas, Gastos FOB y Representación
+            Condiciones Operativas, Crédito/Facturación y Gastos FOB
           </div>
           <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>
             Estas secciones se completan una única vez por oferente en un formulario aparte.
@@ -454,7 +481,6 @@ export default function FormularioR2Page() {
                 <div><span>País</span><b>{paisActual?.nombre}</b></div>
                 <div><span>Rutas cotizadas</span><b>{cotizadas} / {ORIGENES.length}</b></div>
                 <div><span>Región</span><b>{[regionCA && 'CA', regionVE && 'VE'].filter(Boolean).join(', ')}</b></div>
-                <div><span>Facturación</span><b>{facturacion || '—'}</b></div>
               </div>
             </div>
             <div className="m-foot">

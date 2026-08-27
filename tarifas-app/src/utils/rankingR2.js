@@ -100,7 +100,7 @@ export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFilt
       if (!sub) return null
       return [sub.gasto_impresion_bl, sub.gasto_retiro_vacio,
         sub.gasto_demora_contenedor_dia, sub.gasto_demora_chasis_dia,
-        sub.gasto_chasis_3_ejes]
+        sub.gasto_chasis_3_ejes, sub.gasto_estadias]
         .reduce((acc, v) => acc + (v !== null && v !== undefined ? Number(v) : 0), 0)
     })
     const gastosValidos = gastosArr.filter((v) => v !== null && v > 0)

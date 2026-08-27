@@ -31,16 +31,13 @@ CREATE TABLE IF NOT EXISTS rfp_submissions_r2 (
   tarifas_no_incluyen TEXT,
   observaciones TEXT,
   
-  -- Crédito y facturación
-  credito_dias NUMERIC,
-  facturacion_aplica TEXT, -- 'arribo' o 'salida'
-  
   -- Gastos en destino (USD)
   gasto_impresion_bl NUMERIC,
   gasto_retiro_vacio NUMERIC,
   gasto_demora_contenedor_dia NUMERIC,
   gasto_demora_chasis_dia NUMERIC,
   gasto_chasis_3_ejes NUMERIC,
+  gasto_estadias NUMERIC,
   
   -- Allocation mensual por región (TEUS)
   allocation_america NUMERIC,
@@ -48,22 +45,9 @@ CREATE TABLE IF NOT EXISTS rfp_submissions_r2 (
   allocation_asia_pb NUMERIC,
   allocation_asia_restante NUMERIC,
   
-  -- Condiciones operativas
-  herramienta_seguimiento TEXT,
-  herramienta_descripcion TEXT,
-  integracion_api TEXT,
-  recursos_operativos TEXT,
-  
-  -- Gastos FOB puertos base China (JSON)
-  -- Estructura: { "Ningbo": { "booking_charge": {"20GP":"100","40GP":"150","40HQ":"150"}, ... }, ... }
-  gastos_fob JSONB,
-  
-  -- Representación / Oficinas propias (JSON)
+  -- Representación / Oficinas propias (JSON) — por país (se llena en el formulario de tarifas)
   -- Estructura: { "china_ningbo": true, "china_shanghai": false, "destino": true, ... }
-  representacion JSONB,
-  
-  -- Observaciones FOB
-  obs_fob TEXT
+  representacion JSONB
 );
 
 -- Índices para consultas frecuentes
@@ -120,24 +104,17 @@ SELECT
   s.tarifas_incluyen,
   s.tarifas_no_incluyen,
   s.observaciones,
-  s.credito_dias,
-  s.facturacion_aplica,
   s.gasto_impresion_bl,
   s.gasto_retiro_vacio,
   s.gasto_demora_contenedor_dia,
   s.gasto_demora_chasis_dia,
   s.gasto_chasis_3_ejes,
+  s.gasto_estadias,
   s.allocation_america,
   s.allocation_europa,
   s.allocation_asia_pb,
   s.allocation_asia_restante,
-  s.herramienta_seguimiento,
-  s.herramienta_descripcion,
-  s.integracion_api,
-  s.recursos_operativos,
-  s.gastos_fob,
   s.representacion,
-  s.obs_fob,
   (SELECT COUNT(*) FROM rfp_tarifas_r2 t 
    WHERE t.submission_id = s.id 
    AND (t.tarifa_20_std IS NOT NULL OR t.tarifa_40_std IS NOT NULL OR t.tarifa_40_hc IS NOT NULL)
@@ -192,15 +169,12 @@ BEGIN
     pais, oferente, email_contacto, region,
     vigencia_del, vigencia_al,
     tarifas_incluyen, tarifas_no_incluyen, observaciones,
-    credito_dias, facturacion_aplica,
     gasto_impresion_bl, gasto_retiro_vacio,
     gasto_demora_contenedor_dia, gasto_demora_chasis_dia,
-    gasto_chasis_3_ejes,
+    gasto_chasis_3_ejes, gasto_estadias,
     allocation_america, allocation_europa,
     allocation_asia_pb, allocation_asia_restante,
-    herramienta_seguimiento, herramienta_descripcion,
-    integracion_api, recursos_operativos,
-    gastos_fob, representacion
+    representacion
   ) VALUES (
     p->>'pais',
     p->>'oferente',
@@ -211,22 +185,16 @@ BEGIN
     p->>'tarifas_incluyen',
     p->>'tarifas_no_incluyen',
     p->>'observaciones',
-    (p->>'credito_dias')::NUMERIC,
-    p->>'facturacion_aplica',
     (p->>'gasto_impresion_bl')::NUMERIC,
     (p->>'gasto_retiro_vacio')::NUMERIC,
     (p->>'gasto_demora_contenedor_dia')::NUMERIC,
     (p->>'gasto_demora_chasis_dia')::NUMERIC,
     (p->>'gasto_chasis_3_ejes')::NUMERIC,
+    (p->>'gasto_estadias')::NUMERIC,
     (p->>'allocation_america')::NUMERIC,
     (p->>'allocation_europa')::NUMERIC,
     (p->>'allocation_asia_pb')::NUMERIC,
     (p->>'allocation_asia_restante')::NUMERIC,
-    p->>'herramienta_seguimiento',
-    p->>'herramienta_descripcion',
-    p->>'integracion_api',
-    p->>'recursos_operativos',
-    p->'gastos_fob',
     p->'representacion'
   )
   RETURNING id INTO v_sub_id;
@@ -336,10 +304,8 @@ CREATE TABLE IF NOT EXISTS rfp_condiciones_operativas_r2 (
   observaciones TEXT,
 
   -- Gastos FOB puertos base China (JSONB)
+  -- Estructura: { "Ningbo": { "booking_charge": {"20GP":"100","40GP":"150","40HQ":"150","unidad":"por BL","observacion":"..."}, ... }, ... }
   gastos_fob JSONB,
-
-  -- Representación / Oficinas propias (JSONB)
-  representacion JSONB,
 
   -- Observaciones FOB
   obs_fob TEXT
@@ -369,7 +335,7 @@ BEGIN
     credito_dias, facturacion_aplica,
     herramienta_seguimiento, herramienta_descripcion,
     integracion_api, recursos_operativos, observaciones,
-    gastos_fob, representacion, obs_fob
+    gastos_fob, obs_fob
   ) VALUES (
     p->>'oferente',
     p->>'email_contacto',
@@ -382,7 +348,6 @@ BEGIN
     p->>'recursos_operativos',
     p->>'observaciones',
     p->'gastos_fob',
-    p->'representacion',
     p->>'obs_fob'
   )
   RETURNING id INTO v_id;

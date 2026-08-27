@@ -15,7 +15,6 @@ export default function CondicionesOperativasPage() {
   const [regionVE, setRegionVE] = useState(false)
   const [condiciones, setCondiciones] = useState({})
   const [gastosFob, setGastosFob] = useState({})
-  const [representacion, setRepresentacion] = useState({})
   const [facturacion, setFacturacion] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [folio, setFolio] = useState('')
@@ -24,8 +23,8 @@ export default function CondicionesOperativasPage() {
   const [errors, setErrors] = useState({})
 
   const getData = useCallback(() => ({
-    oferente, email, regionCA, regionVE, condiciones, gastosFob, representacion, facturacion
-  }), [oferente, email, regionCA, regionVE, condiciones, gastosFob, representacion, facturacion])
+    oferente, email, regionCA, regionVE, condiciones, gastosFob, facturacion
+  }), [oferente, email, regionCA, regionVE, condiciones, gastosFob, facturacion])
 
   const { scheduleSave } = useAutoSave(DRAFT_KEY, getData)
 
@@ -42,7 +41,6 @@ export default function CondicionesOperativasPage() {
         setRegionVE(!!draft.regionVE)
         setCondiciones(draft.condiciones || {})
         setGastosFob(draft.gastosFob || {})
-        setRepresentacion(draft.representacion || {})
         setFacturacion(draft.facturacion || '')
       } else {
         clearDraft(DRAFT_KEY)
@@ -63,11 +61,6 @@ export default function CondicionesOperativasPage() {
       copy[puerto][cargoKey][contenedor] = value
       return copy
     })
-    scheduleSave()
-  }
-
-  function updateRepre(key, value) {
-    setRepresentacion((prev) => ({ ...prev, [key]: value }))
     scheduleSave()
   }
 
@@ -103,7 +96,6 @@ export default function CondicionesOperativasPage() {
         integracion_api: condiciones.integracion_api?.trim() || null,
         recursos_operativos: condiciones.recursos_operativos?.trim() || null,
         gastos_fob: gastosFob,
-        representacion: representacion,
         obs_fob: condiciones.obs_fob?.trim() || null
       }
 
@@ -159,7 +151,7 @@ export default function CondicionesOperativasPage() {
 
         <div style={{ padding: '10px 28px 0', fontSize: 13.5, color: 'var(--muted)' }}>
           Este formulario se completa una única vez por oferente. Incluye condiciones operativas,
-          crédito/facturación, gastos FOB y representación.
+          crédito/facturación y gastos FOB.
         </div>
 
         {/* Oferente block */}
@@ -220,6 +212,8 @@ export default function CondicionesOperativasPage() {
                     <th className="num">20GP (CNY)</th>
                     <th className="num">40GP (CNY)</th>
                     <th className="num">40HQ (CNY)</th>
+                    <th>Unidad</th>
+                    <th>Observación</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -236,6 +230,22 @@ export default function CondicionesOperativasPage() {
                           />
                         </td>
                       ))}
+                      <td>
+                        <input
+                          type="text"
+                          value={(gastosFob[puerto]?.[cargo.key]?.unidad) || ''}
+                          onChange={(e) => updateFob(puerto, cargo.key, 'unidad', e.target.value)}
+                          placeholder="—"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          value={(gastosFob[puerto]?.[cargo.key]?.observacion) || ''}
+                          onChange={(e) => updateFob(puerto, cargo.key, 'observacion', e.target.value)}
+                          placeholder="—"
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -248,41 +258,6 @@ export default function CondicionesOperativasPage() {
         <div className="cond-bar">Observaciones Gastos FOB</div>
         <div className="cond-grid">
           <div className="cond-row"><div className="lbl">Observaciones</div><div className="val"><textarea value={condiciones.obs_fob || ''} onChange={(e) => updateCond('obs_fob', e.target.value)} /></div></div>
-        </div>
-
-        {/* REPRESENTACIÓN / OFICINAS */}
-        <div className="cond-bar">Representación / Oficinas (propias)</div>
-        <div className="cond-grid">
-          <div className="cond-row">
-            <div className="lbl">Puertos Base China</div>
-            <div className="val">
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px 20px' }}>
-                {PUERTOS_BASE_CHINA.map((p) => (
-                  <label key={p} className="cb-label">
-                    <input
-                      type="checkbox"
-                      checked={!!representacion[`china_${p.toLowerCase()}`]}
-                      onChange={(e) => updateRepre(`china_${p.toLowerCase()}`, e.target.checked)}
-                    />
-                    {p}
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="cond-row">
-            <div className="lbl">Destino</div>
-            <div className="val">
-              <label className="cb-label">
-                <input
-                  type="checkbox"
-                  checked={!!representacion.destino}
-                  onChange={(e) => updateRepre('destino', e.target.checked)}
-                />
-                Sí, tiene oficina propia en destino
-              </label>
-            </div>
-          </div>
         </div>
 
       </section>

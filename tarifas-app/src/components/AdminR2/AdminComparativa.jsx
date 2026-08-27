@@ -27,8 +27,7 @@ export default function AdminComparativa() {
       ...r,
       credito_dias: r.credito_dias ?? condOp.credito_dias,
       facturacion_aplica: r.facturacion_aplica ?? condOp.facturacion_aplica,
-      gastos_fob: r.gastos_fob ?? condOp.gastos_fob,
-      representacion: r.representacion ?? condOp.representacion
+      gastos_fob: r.gastos_fob ?? condOp.gastos_fob
     }
   })
   const r2Tarif = tarifasR2 || []
