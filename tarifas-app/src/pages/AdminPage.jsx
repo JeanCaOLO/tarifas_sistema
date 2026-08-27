@@ -11,6 +11,7 @@ import AdminDashboardR2 from '../components/AdminR2/AdminDashboardR2'
 import AdminRankingR2 from '../components/AdminR2/AdminRankingR2'
 import AdminRankingRegionalR2 from '../components/AdminR2/AdminRankingRegionalR2'
 import AdminComparativa from '../components/AdminR2/AdminComparativa'
+import AdminCondicionesOperativas from '../components/AdminR2/AdminCondicionesOperativas'
 
 export const AdminContext = createContext(null)
 
@@ -99,8 +100,8 @@ export default function AdminPage() {
   // Reset tab when switching etapa if tab doesn't exist in that etapa
   function handleEtapaChange(newEtapa) {
     setEtapa(newEtapa)
-    // comparativa is only available in etapa '2'
-    if (newEtapa === '1' && tab === 'comparativa') {
+    // comparativa y condiciones solo existen en etapa '2'
+    if (newEtapa === '1' && (tab === 'comparativa' || tab === 'condiciones')) {
       setTab('respuestas')
     }
   }
@@ -133,6 +134,7 @@ export default function AdminPage() {
         {!loading && etapa === '2' && tab === 'dashboard' && <AdminDashboardR2 />}
         {!loading && etapa === '2' && tab === 'ranking' && <AdminRankingR2 />}
         {!loading && etapa === '2' && tab === 'ranking2' && <AdminRankingRegionalR2 />}
+        {!loading && etapa === '2' && tab === 'condiciones' && <AdminCondicionesOperativas />}
         {!loading && etapa === '2' && tab === 'comparativa' && <AdminComparativa />}
       </div>
     </AdminContext.Provider>

@@ -3,10 +3,10 @@ import { ORIGENES, PUERTOS, RATE_FIELDS, PUERTOS_BASE_CHINA, CARGOS_FOB, CONTENE
 import { numOrNull } from './format'
 
 /**
- * Descarga plantilla Excel para Etapa 2
+ * Descarga plantilla Excel para Etapa 2 (solo tarifas)
  * Hoja 1: Tarifas (igual que E1)
  * Hoja 2: Puertos válidos
- * Hoja 3: Gastos FOB por puerto base China
+ * (Los gastos FOB se cargan aparte en el formulario de Condiciones Operativas)
  */
 export function descargarPlantillaR2(paisActual) {
   const wb = XLSX.utils.book_new()
@@ -37,7 +37,15 @@ export function descargarPlantillaR2(paisActual) {
   wsPuertos['!cols'] = [{ wch: 36 }]
   XLSX.utils.book_append_sheet(wb, wsPuertos, 'Puertos')
 
-  // --- Hoja 3: Gastos FOB ---
+  XLSX.writeFile(wb, `Plantilla_Tarifas_R2_${paisActual.code}.xlsx`)
+}
+
+/**
+ * Descarga plantilla Excel de Gastos FOB (para el formulario de Condiciones Operativas)
+ */
+export function descargarPlantillaFobR2() {
+  const wb = XLSX.utils.book_new()
+
   const fobHeaders = ['Puerto', 'Cargo', '20GP (CNY)', '40GP (CNY)', '40HQ (CNY)', 'Unidad', 'Observación']
   const fobData = [fobHeaders]
   for (const puerto of PUERTOS_BASE_CHINA) {
@@ -49,7 +57,7 @@ export function descargarPlantillaR2(paisActual) {
   wsFob['!cols'] = [{ wch: 22 }, { wch: 28 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 24 }]
   XLSX.utils.book_append_sheet(wb, wsFob, 'Gastos FOB')
 
-  XLSX.writeFile(wb, `Plantilla_Tarifas_R2_${paisActual.code}.xlsx`)
+  XLSX.writeFile(wb, 'Plantilla_Gastos_FOB_R2.xlsx')
 }
 
 /**
@@ -135,6 +143,8 @@ export function leerGastosFobR2(file) {
           const v20 = String(row[2] || '').trim()
           const v40 = String(row[3] || '').trim()
           const v40hq = String(row[4] || '').trim()
+          const unidad = String(row[5] || '').trim()
+          const observacion = String(row[6] || '').trim()
 
           if (!puertoRaw || !cargoLabel) continue
 
@@ -155,7 +165,9 @@ export function leerGastosFobR2(file) {
           result[puertoMatch][cargoMatch.key] = {
             '20GP': v20,
             '40GP': v40,
-            '40HQ': v40hq
+            '40HQ': v40hq,
+            unidad,
+            observacion
           }
         }
 

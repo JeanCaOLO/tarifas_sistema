@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { PUERTOS_BASE_CHINA, CARGOS_FOB, CONTENEDORES_FOB, FACTURACION_OPCIONES } from '../constantsR2'
 import { numOrNull } from '../utils/format'
+import { descargarPlantillaFobR2, leerGastosFobR2 } from '../utils/excelR2'
 import { useAutoSave, loadDraft, clearDraft } from '../hooks/useAutoSave'
 
 const DRAFT_KEY = 'r2_condop'
@@ -21,6 +22,7 @@ export default function CondicionesOperativasPage() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [msg, setMsg] = useState(null)
   const [errors, setErrors] = useState({})
+  const fobFileRef = useRef(null)
 
   const getData = useCallback(() => ({
     oferente, email, regionCA, regionVE, condiciones, gastosFob, facturacion
@@ -62,6 +64,25 @@ export default function CondicionesOperativasPage() {
       return copy
     })
     scheduleSave()
+  }
+
+  async function handleCargarFob(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    e.target.value = ''
+    try {
+      const fobImport = await leerGastosFobR2(file)
+      if (!fobImport) {
+        setMsg({ title: 'Sin datos', body: 'No se encontró la hoja "Gastos FOB" o está vacía.', error: true })
+        return
+      }
+      setGastosFob(fobImport)
+      scheduleSave()
+      const nPuertos = Object.keys(fobImport).length
+      setMsg({ title: 'Gastos FOB cargados', body: `Se importaron datos de ${nPuertos} puerto(s) base.`, error: false })
+    } catch (err) {
+      setMsg({ title: 'Error', body: err.message, error: true })
+    }
   }
 
   function validar() {
@@ -200,6 +221,18 @@ export default function CondicionesOperativasPage() {
 
         {/* GASTOS FOB */}
         <div className="cond-bar">Cargos Locales Puertos Base de China — FOB (CNY)</div>
+        <div className="section-head" style={{ paddingTop: 10, paddingBottom: 4 }}>
+          <span className="note" style={{ color: 'var(--muted)', fontSize: 12.5 }}>Complétalo a mano o carga un Excel con la plantilla</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={descargarPlantillaFobR2}>
+              Descargar plantilla FOB
+            </button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => fobFileRef.current?.click()}>
+              Cargar Excel FOB
+            </button>
+            <input ref={fobFileRef} type="file" accept=".xlsx,.xls" hidden onChange={handleCargarFob} />
+          </div>
+        </div>
         <div className="cond-sub">Completar por cada puerto base los cargos locales en términos FOB</div>
         {PUERTOS_BASE_CHINA.map((puerto) => (
           <div key={puerto} className="fob-puerto-section">

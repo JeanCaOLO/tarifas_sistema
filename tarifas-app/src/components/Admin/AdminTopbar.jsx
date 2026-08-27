@@ -31,6 +31,11 @@ export default function AdminTopbar() {
           <button className={`tab ${tab === 'ranking' ? 'active' : ''}`} onClick={() => setTab('ranking')}>Ranking</button>
           <button className={`tab ${tab === 'ranking2' ? 'active' : ''}`} onClick={() => setTab('ranking2')}>Ranking Regional</button>
           {etapa === '2' && (
+            <button className={`tab ${tab === 'condiciones' ? 'active' : ''}`} onClick={() => setTab('condiciones')}>
+              Condiciones Op.
+            </button>
+          )}
+          {etapa === '2' && (
             <button className={`tab tab-compare ${tab === 'comparativa' ? 'active' : ''}`} onClick={() => setTab('comparativa')}>
               Comparativa E1↔E2
             </button>
