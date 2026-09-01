@@ -391,3 +391,9 @@ CREATE POLICY "Actualización autenticada tarifas R2" ON rfp_tarifas_r2
   FOR UPDATE TO authenticated
   USING (true)
   WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Actualización autenticada condop R2" ON rfp_condiciones_operativas_r2;
+CREATE POLICY "Actualización autenticada condop R2" ON rfp_condiciones_operativas_r2
+  FOR UPDATE TO authenticated
+  USING (true)
+  WITH CHECK (true);
