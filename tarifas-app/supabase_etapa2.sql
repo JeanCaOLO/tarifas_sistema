@@ -375,3 +375,19 @@ CREATE POLICY "Eliminación autenticada condop R2" ON rfp_condiciones_operativas
 GRANT EXECUTE ON FUNCTION submit_condiciones_operativas_r2(JSONB) TO anon;
 GRANT EXECUTE ON FUNCTION submit_condiciones_operativas_r2(JSONB) TO authenticated;
 GRANT SELECT ON v_rfp_condiciones_operativas_r2 TO authenticated;
+
+-- ============================================================
+-- 10. POLÍTICAS DE ACTUALIZACIÓN (UPDATE) — necesarias para editar respuestas R2
+--     Ejecutar en el SQL Editor de Supabase si aún no existen.
+-- ============================================================
+DROP POLICY IF EXISTS "Actualización autenticada R2" ON rfp_submissions_r2;
+CREATE POLICY "Actualización autenticada R2" ON rfp_submissions_r2
+  FOR UPDATE TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Actualización autenticada tarifas R2" ON rfp_tarifas_r2;
+CREATE POLICY "Actualización autenticada tarifas R2" ON rfp_tarifas_r2
+  FOR UPDATE TO authenticated
+  USING (true)
+  WITH CHECK (true);

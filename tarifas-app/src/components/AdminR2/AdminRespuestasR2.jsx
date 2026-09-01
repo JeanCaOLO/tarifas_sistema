@@ -1,4 +1,4 @@
-import { useState, useContext } from 'react'
+import { useState, useContext, useEffect } from 'react'
 import { AdminContext } from '../../pages/AdminPage'
 import { supabase } from '../../supabase'
 import { TOTAL_RUTAS, PUERTOS_BASE_CHINA } from '../../constantsR2'
@@ -12,6 +12,7 @@ export default function AdminRespuestasR2() {
   const [fDesde, setFDesde] = useState('')
   const [fHasta, setFHasta] = useState('')
   const [detalle, setDetalle] = useState(null)
+  const [editar, setEditar] = useState(null)
 
   const respuestas = respuestasR2 || []
   const tarifs = tarifasR2 || []
@@ -99,6 +100,7 @@ export default function AdminRespuestasR2() {
                     <td>
                       <div className="row-actions">
                         <button className="btn btn-ghost btn-sm" onClick={() => setDetalle(r)}>Ver</button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setEditar(r)}>Editar</button>
                         <button className="btn btn-ghost btn-sm" onClick={() => descargarUna(r)}>Excel</button>
                         <button className="btn btn-danger btn-sm" onClick={() => eliminar(r.id)}>Eliminar</button>
                       </div>
@@ -118,6 +120,15 @@ export default function AdminRespuestasR2() {
           tarifas={tarifasDe(detalle.id)}
           onClose={() => setDetalle(null)}
           onExport={() => descargarUna(detalle)}
+        />
+      )}
+
+      {editar && (
+        <EditarModal
+          submission={editar}
+          tarifas={tarifasDe(editar.id)}
+          onClose={() => setEditar(null)}
+          onSaved={() => { setEditar(null); cargarDatos() }}
         />
       )}
     </section>
@@ -207,6 +218,184 @@ function DetalleModal({ submission: r, tarifas, onClose, onExport }) {
           <button className="btn btn-primary" onClick={onExport}>Descargar Excel</button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// Campos numéricos de la submission que se pueden editar
+const SUB_NUM_FIELDS = [
+  'gasto_impresion_bl', 'gasto_retiro_vacio', 'gasto_demora_contenedor_dia',
+  'gasto_demora_chasis_dia', 'gasto_chasis_3_ejes', 'gasto_estadias',
+  'allocation_america', 'allocation_europa', 'allocation_asia_pb', 'allocation_asia_restante',
+]
+// Campos de texto/fecha editables
+const SUB_TEXT_FIELDS = [
+  'oferente', 'email_contacto', 'vigencia_del', 'vigencia_al',
+  'tarifas_incluyen', 'tarifas_no_incluyen', 'observaciones',
+]
+// Campos numéricos editables por tarifa
+const TAR_NUM_FIELDS = [
+  'dias_libres_origen', 'dias_libres_destino',
+  'tarifa_20_std', 'tarifa_40_std', 'tarifa_40_hc',
+]
+
+function numOrNull(v) {
+  if (v === '' || v == null) return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+function EditarModal({ submission, tarifas, onClose, onSaved }) {
+  const [sub, setSub] = useState(() => ({ ...submission }))
+  const [rows, setRows] = useState(() => tarifas.map((t) => ({ ...t })))
+  const [guardando, setGuardando] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    setSub({ ...submission })
+    setRows(tarifas.map((t) => ({ ...t })))
+  }, [submission])
+
+  function setSubField(field, value) {
+    setSub((prev) => ({ ...prev, [field]: value }))
+  }
+  function setRowField(idx, field, value) {
+    setRows((prev) => {
+      const copy = [...prev]
+      copy[idx] = { ...copy[idx], [field]: value }
+      return copy
+    })
+  }
+
+  async function guardar() {
+    setError('')
+    if (!sub.oferente || !String(sub.oferente).trim()) {
+      setError('El nombre del oferente es obligatorio.')
+      return
+    }
+    setGuardando(true)
+    try {
+      // 1. Actualizar submission (tabla base)
+      const subPayload = {}
+      for (const f of SUB_TEXT_FIELDS) {
+        const v = sub[f]
+        subPayload[f] = v === '' || v == null ? null : (typeof v === 'string' ? v.trim() : v)
+      }
+      for (const f of SUB_NUM_FIELDS) {
+        subPayload[f] = numOrNull(sub[f])
+      }
+
+      const { error: e1 } = await supabase
+        .from('rfp_submissions_r2')
+        .update(subPayload)
+        .eq('id', submission.id)
+      if (e1) throw e1
+
+      // 2. Actualizar cada tarifa (tabla base)
+      for (const row of rows) {
+        if (row.id == null) continue
+        const tarPayload = {
+          puerto_arribo: row.puerto_arribo === '' || row.puerto_arribo == null ? null : row.puerto_arribo,
+          navieras: row.navieras === '' || row.navieras == null ? null : row.navieras,
+          tiempo_transito: row.tiempo_transito === '' || row.tiempo_transito == null ? null : row.tiempo_transito,
+        }
+        for (const f of TAR_NUM_FIELDS) {
+          tarPayload[f] = numOrNull(row[f])
+        }
+        const { error: e2 } = await supabase
+          .from('rfp_tarifas_r2')
+          .update(tarPayload)
+          .eq('id', row.id)
+        if (e2) throw e2
+      }
+
+      onSaved()
+    } catch (err) {
+      setError(err?.message || 'Error al guardar los cambios.')
+      setGuardando(false)
+    }
+  }
+
+  return (
+    <div className="overlay open" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 1000, width: '100%' }} onClick={(e) => e.stopPropagation()}>
+        <div className="m-head">Editar oferta — {submission.oferente}</div>
+        <div className="m-body" style={{ maxHeight: '72vh', overflow: 'auto' }}>
+          {error && <div className="empty" style={{ color: '#b91c1c', marginBottom: 12 }}>{error}</div>}
+
+          <div className="cond-list">
+            <div className="cbar">Datos generales</div>
+            <EditRow label="Oferente"><input type="text" value={sub.oferente || ''} onChange={(e) => setSubField('oferente', e.target.value)} /></EditRow>
+            <EditRow label="Correo"><input type="email" value={sub.email_contacto || ''} onChange={(e) => setSubField('email_contacto', e.target.value)} /></EditRow>
+          </div>
+
+          <div className="cond-list" style={{ marginTop: 14 }}>
+            <div className="cbar">Condiciones Comerciales</div>
+            <EditRow label="Vigencia del"><input type="date" value={sub.vigencia_del || ''} onChange={(e) => setSubField('vigencia_del', e.target.value)} /></EditRow>
+            <EditRow label="Vigencia al"><input type="date" value={sub.vigencia_al || ''} onChange={(e) => setSubField('vigencia_al', e.target.value)} /></EditRow>
+            <EditRow label="Tarifas incluyen"><textarea rows="2" value={sub.tarifas_incluyen || ''} onChange={(e) => setSubField('tarifas_incluyen', e.target.value)} /></EditRow>
+            <EditRow label="Tarifas NO incluyen"><textarea rows="2" value={sub.tarifas_no_incluyen || ''} onChange={(e) => setSubField('tarifas_no_incluyen', e.target.value)} /></EditRow>
+            <EditRow label="Observaciones"><textarea rows="2" value={sub.observaciones || ''} onChange={(e) => setSubField('observaciones', e.target.value)} /></EditRow>
+          </div>
+
+          <div className="cond-list" style={{ marginTop: 14 }}>
+            <div className="cbar">Gastos en Destino (USD)</div>
+            <EditRow label="Impresión de BL"><input type="number" min="0" step="0.01" value={sub.gasto_impresion_bl ?? ''} onChange={(e) => setSubField('gasto_impresion_bl', e.target.value)} /></EditRow>
+            <EditRow label="Retiro de vacío"><input type="number" min="0" step="0.01" value={sub.gasto_retiro_vacio ?? ''} onChange={(e) => setSubField('gasto_retiro_vacio', e.target.value)} /></EditRow>
+            <EditRow label="Demoras contenedor/día"><input type="number" min="0" step="0.01" value={sub.gasto_demora_contenedor_dia ?? ''} onChange={(e) => setSubField('gasto_demora_contenedor_dia', e.target.value)} /></EditRow>
+            <EditRow label="Demoras chasis/día"><input type="number" min="0" step="0.01" value={sub.gasto_demora_chasis_dia ?? ''} onChange={(e) => setSubField('gasto_demora_chasis_dia', e.target.value)} /></EditRow>
+            <EditRow label="Chasis 3 ejes"><input type="number" min="0" step="0.01" value={sub.gasto_chasis_3_ejes ?? ''} onChange={(e) => setSubField('gasto_chasis_3_ejes', e.target.value)} /></EditRow>
+            <EditRow label="Estadías"><input type="number" min="0" step="0.01" value={sub.gasto_estadias ?? ''} onChange={(e) => setSubField('gasto_estadias', e.target.value)} /></EditRow>
+          </div>
+
+          <div className="cond-list" style={{ marginTop: 14 }}>
+            <div className="cbar">Allocation Mensual (TEUS)</div>
+            <EditRow label="América"><input type="number" min="0" step="1" value={sub.allocation_america ?? ''} onChange={(e) => setSubField('allocation_america', e.target.value)} /></EditRow>
+            <EditRow label="Europa"><input type="number" min="0" step="1" value={sub.allocation_europa ?? ''} onChange={(e) => setSubField('allocation_europa', e.target.value)} /></EditRow>
+            <EditRow label="Asia Puertos Base"><input type="number" min="0" step="1" value={sub.allocation_asia_pb ?? ''} onChange={(e) => setSubField('allocation_asia_pb', e.target.value)} /></EditRow>
+            <EditRow label="Asia (restante)"><input type="number" min="0" step="1" value={sub.allocation_asia_restante ?? ''} onChange={(e) => setSubField('allocation_asia_restante', e.target.value)} /></EditRow>
+          </div>
+
+          <div className="section-title" style={{ marginTop: 18 }}>Tarifas cotizadas ({rows.length})</div>
+          <div className="table-scroll" style={{ maxHeight: 360 }}>
+            <table className="grid">
+              <thead><tr>
+                <th>Origen</th><th>Región</th><th>Puerto</th>
+                <th className="th-num">20" STD</th><th className="th-num">40" STD</th><th className="th-num">40" HC</th>
+                <th className="th-num">D.L. Origen</th><th className="th-num">D.L. Destino</th>
+              </tr></thead>
+              <tbody>
+                {rows.map((t, i) => (
+                  <tr key={t.id ?? i}>
+                    <td>{t.origen}</td>
+                    <td>{t.region}</td>
+                    <td><input type="text" value={t.puerto_arribo || ''} onChange={(e) => setRowField(i, 'puerto_arribo', e.target.value)} /></td>
+                    <td className="num"><input type="number" min="0" step="0.01" value={t.tarifa_20_std ?? ''} onChange={(e) => setRowField(i, 'tarifa_20_std', e.target.value)} /></td>
+                    <td className="num"><input type="number" min="0" step="0.01" value={t.tarifa_40_std ?? ''} onChange={(e) => setRowField(i, 'tarifa_40_std', e.target.value)} /></td>
+                    <td className="num"><input type="number" min="0" step="0.01" value={t.tarifa_40_hc ?? ''} onChange={(e) => setRowField(i, 'tarifa_40_hc', e.target.value)} /></td>
+                    <td className="num"><input type="number" min="0" step="1" value={t.dias_libres_origen ?? ''} onChange={(e) => setRowField(i, 'dias_libres_origen', e.target.value)} /></td>
+                    <td className="num"><input type="number" min="0" step="1" value={t.dias_libres_destino ?? ''} onChange={(e) => setRowField(i, 'dias_libres_destino', e.target.value)} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!rows.length && <div className="empty">Sin tarifas cargadas.</div>}
+          </div>
+        </div>
+        <div className="m-foot">
+          <button className="btn btn-ghost" onClick={onClose} disabled={guardando}>Cancelar</button>
+          <button className="btn btn-primary" onClick={guardar} disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar cambios'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EditRow({ label, children }) {
+  return (
+    <div className="crow">
+      <div className="l">{label}</div>
+      <div className="v">{children}</div>
     </div>
   )
 }
