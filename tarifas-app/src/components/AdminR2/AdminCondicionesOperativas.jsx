@@ -179,19 +179,37 @@ function numOrNull(v) {
   return Number.isFinite(n) ? n : null
 }
 
+function regionToArray(region) {
+  if (Array.isArray(region)) return region
+  if (typeof region === 'string') {
+    try { const p = JSON.parse(region); if (Array.isArray(p)) return p } catch { /* noop */ }
+    return region ? region.split(',').map((s) => s.trim()).filter(Boolean) : []
+  }
+  return []
+}
+
 function EditarModal({ condOp, onClose, onSaved }) {
   const [form, setForm] = useState(() => ({ ...condOp }))
   const [fob, setFob] = useState(() => parseJson(condOp.gastos_fob) || {})
+  const [regionSel, setRegionSel] = useState(() => regionToArray(condOp.region))
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     setForm({ ...condOp })
     setFob(parseJson(condOp.gastos_fob) || {})
+    setRegionSel(regionToArray(condOp.region))
   }, [condOp])
 
   function setField(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }))
+  }
+  function toggleRegion(code, checked) {
+    setRegionSel((prev) => {
+      const set = new Set(prev)
+      if (checked) set.add(code); else set.delete(code)
+      return ['CA', 'VE'].filter((c) => set.has(c))
+    })
   }
 
   function setFobCell(puerto, cargoKey, campo, value) {
@@ -212,11 +230,16 @@ function EditarModal({ condOp, onClose, onSaved }) {
       setError('El nombre del oferente es obligatorio.')
       return
     }
+    if (!regionSel.length) {
+      setError('Selecciona al menos una región (CA o VE).')
+      return
+    }
     setGuardando(true)
     try {
       const payload = {
         oferente: form.oferente.trim(),
         email_contacto: form.email_contacto?.trim() || null,
+        region: regionSel,
         credito_dias: numOrNull(form.credito_dias),
         facturacion_aplica: form.facturacion_aplica || null,
         herramienta_seguimiento: form.herramienta_seguimiento?.trim() || null,
@@ -252,6 +275,12 @@ function EditarModal({ condOp, onClose, onSaved }) {
             <div className="cbar">Datos generales</div>
             <EditRow label="Oferente"><input type="text" value={form.oferente || ''} onChange={(e) => setField('oferente', e.target.value)} /></EditRow>
             <EditRow label="Correo"><input type="email" value={form.email_contacto || ''} onChange={(e) => setField('email_contacto', e.target.value)} /></EditRow>
+            <EditRow label="Región de participación">
+              <div className="checkbox-group">
+                <label className="cb-label"><input type="checkbox" checked={regionSel.includes('CA')} onChange={(e) => toggleRegion('CA', e.target.checked)} /> CA</label>
+                <label className="cb-label"><input type="checkbox" checked={regionSel.includes('VE')} onChange={(e) => toggleRegion('VE', e.target.checked)} /> VE</label>
+              </div>
+            </EditRow>
           </div>
 
           <div className="cond-list" style={{ marginTop: 14 }}>

@@ -3,7 +3,7 @@ import { AdminContext } from '../../pages/AdminPage'
 import { supabase } from '../../supabase'
 import { TOTAL_RUTAS, PUERTOS_BASE_CHINA } from '../../constantsR2'
 import { fmtFecha, folioDe, fmtMoney } from '../../utils/format'
-import { exportarOfertaR2, exportarTodasR2 } from '../../utils/exportR2'
+import { exportarOfertaR2, exportarTodasR2, exportarTodasDetalleR2 } from '../../utils/exportR2'
 
 export default function AdminRespuestasR2() {
   const { respuestasR2, tarifasR2, cargarDatos } = useContext(AdminContext)
@@ -48,6 +48,12 @@ export default function AdminRespuestasR2() {
     exportarTodasR2(filtradas, tarifasFiltradas)
   }
 
+  function descargarTodasDetalle() {
+    const idsFiltrados = new Set(filtradas.map((r) => r.id))
+    const tarifasFiltradas = tarifs.filter((t) => idsFiltrados.has(t.submission_id))
+    exportarTodasDetalleR2(filtradas, tarifasFiltradas)
+  }
+
   return (
     <section>
       <div className="filters">
@@ -69,7 +75,8 @@ export default function AdminRespuestasR2() {
         <div className="f"><label>Hasta</label><input type="date" value={fHasta} onChange={(e) => setFHasta(e.target.value)} /></div>
         <span className="spacer" />
         <button className="btn btn-ghost" onClick={() => { setFPais(''); setFBuscar(''); setFDesde(''); setFHasta('') }}>Limpiar filtros</button>
-        <button className="btn btn-primary" onClick={descargarTodas} disabled={!filtradas.length}>Descargar todo (Excel)</button>
+        <button className="btn btn-primary" onClick={descargarTodas} disabled={!filtradas.length}>Descargar resumen (Excel)</button>
+        <button className="btn btn-primary" onClick={descargarTodasDetalle} disabled={!filtradas.length}>Descargar detalle (Excel)</button>
       </div>
 
       <p className="count-note">{filtradas.length} de {respuestas.length} respuestas R2 · {tarifs.length} tarifas en total</p>

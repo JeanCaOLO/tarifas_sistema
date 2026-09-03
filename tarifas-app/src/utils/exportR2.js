@@ -134,6 +134,104 @@ export function exportarTodasR2(respuestas, tarifas) {
 }
 
 /**
+ * Exporta TODAS las ofertas de Etapa 2 en formato DETALLE:
+ * una hoja por oferente con su resumen completo + tarifas (igual que la descarga individual).
+ */
+export function exportarTodasDetalleR2(respuestas, tarifas) {
+  const wb = XLSX.utils.book_new()
+
+  // Agrupar tarifas por submission
+  const tarifasPorSub = new Map()
+  for (const t of tarifas) {
+    if (!tarifasPorSub.has(t.submission_id)) tarifasPorSub.set(t.submission_id, [])
+    tarifasPorSub.get(t.submission_id).push(t)
+  }
+
+  const usados = new Set()
+  respuestas.forEach((submission, idx) => {
+    const tars = tarifasPorSub.get(submission.id) || []
+
+    const allocTotal = (Number(submission.allocation_america) || 0) + (Number(submission.allocation_europa) || 0) +
+      (Number(submission.allocation_asia_pb) || 0) + (Number(submission.allocation_asia_restante) || 0)
+    const region = Array.isArray(submission.region) ? submission.region.join(', ') : (submission.region || '')
+    const folioTxt = String(submission.id).slice(0, 8).toUpperCase()
+
+    const detalle = [
+      ['OFERTA ETAPA 2 — DETALLE'],
+      [],
+      ['Oferente', submission.oferente],
+      ['Correo', submission.email_contacto || ''],
+      ['País', submission.pais_nombre || submission.pais],
+      ['Región', region],
+      ['Folio', folioTxt],
+      ['Fecha', submission.created_at],
+      ['Vigencia del', submission.vigencia_del || ''],
+      ['Vigencia al', submission.vigencia_al || ''],
+      [],
+      ['CONDICIONES COMERCIALES'],
+      ['Las tarifas incluyen', submission.tarifas_incluyen || ''],
+      ['Las tarifas NO incluyen', submission.tarifas_no_incluyen || ''],
+      ['Observaciones', submission.observaciones || ''],
+      [],
+      ['GASTOS EN DESTINO (USD)'],
+      ['Impresión de BL', submission.gasto_impresion_bl ?? ''],
+      ['Retiro de vacío', submission.gasto_retiro_vacio ?? ''],
+      ['Demoras contenedor por día', submission.gasto_demora_contenedor_dia ?? ''],
+      ['Demoras chasis por día', submission.gasto_demora_chasis_dia ?? ''],
+      ['Chasis 3 ejes', submission.gasto_chasis_3_ejes ?? ''],
+      ['Estadías', submission.gasto_estadias ?? ''],
+      [],
+      ['ALLOCATION MENSUAL (TEUS)'],
+      ['América', submission.allocation_america ?? ''],
+      ['Europa', submission.allocation_europa ?? ''],
+      ['Asia Puertos Base', submission.allocation_asia_pb ?? ''],
+      ['Asia (restante)', submission.allocation_asia_restante ?? ''],
+      ['Total', allocTotal],
+      [],
+      ['REPRESENTACIÓN / OFICINAS'],
+      ...representacionRows(submission.representacion),
+      [],
+      [`TARIFAS COTIZADAS (${tars.length})`],
+      ['Origen', 'Región', 'Destino', 'Días Libres Origen', 'Días Libres Destino',
+        'Naviera(s)', 'Tiempo tránsito', 'Puerto Arribo', 'Tarifa 20" STD', 'Tarifa 40" STD', 'Tarifa 40" HC'],
+      ...tars.map((t) => [
+        t.origen, t.region, t.destino,
+        t.dias_libres_origen ?? '', t.dias_libres_destino ?? '',
+        t.navieras || '', t.tiempo_transito || '', t.puerto_arribo || '',
+        t.tarifa_20_std ?? '', t.tarifa_40_std ?? '', t.tarifa_40_hc ?? ''
+      ])
+    ]
+
+    const ws = XLSX.utils.aoa_to_sheet(detalle)
+    ws['!cols'] = [{ wch: 34 }, { wch: 20 }, { wch: 14 }, { wch: 16 }, { wch: 16 },
+      { wch: 22 }, { wch: 16 }, { wch: 30 }, { wch: 14 }, { wch: 14 }, { wch: 14 }]
+    XLSX.utils.book_append_sheet(wb, ws, nombreHojaUnico(submission.oferente, idx, usados))
+  })
+
+  const fecha = new Date().toISOString().slice(0, 10)
+  XLSX.writeFile(wb, `Ofertas_R2_Detalle_${fecha}.xlsx`)
+}
+
+/**
+ * Genera un nombre de hoja válido y único (Excel limita a 31 caracteres
+ * y no permite los caracteres : \ / ? * [ ]).
+ */
+function nombreHojaUnico(oferente, idx, usados) {
+  let base = String(oferente || `Oferente ${idx + 1}`).replace(/[:\\/?*[\]]/g, ' ').trim()
+  const sufijo = ` (${idx + 1})`
+  base = base.slice(0, 31 - sufijo.length)
+  let nombre = `${base}${sufijo}`
+  let n = idx + 1
+  while (usados.has(nombre)) {
+    n++
+    const s = ` (${n})`
+    nombre = `${base.slice(0, 31 - s.length)}${s}`
+  }
+  usados.add(nombre)
+  return nombre
+}
+
+/**
  * Exporta una condición operativa a Excel (incluye FOB detallado)
  */
 export function exportarCondicionOperativa(condOp) {
