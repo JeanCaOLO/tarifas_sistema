@@ -3,7 +3,7 @@ import { AdminContext } from '../../pages/AdminPage'
 import { supabase } from '../../supabase'
 import { PUERTOS_BASE_CHINA, CARGOS_FOB, CONTENEDORES_FOB } from '../../constantsR2'
 import { fmtFecha, folioDe } from '../../utils/format'
-import { exportarCondicionOperativa } from '../../utils/exportR2'
+import { exportarCondicionOperativa, exportarTodasCondicionesOperativas } from '../../utils/exportR2'
 
 export default function AdminCondicionesOperativas() {
   const { condOpR2, cargarDatos } = useContext(AdminContext)
@@ -34,6 +34,7 @@ export default function AdminCondicionesOperativas() {
         </div>
         <span className="spacer" />
         <span className="count-note">{filtradas.length} de {items.length} condiciones operativas</span>
+        <button className="btn btn-primary" onClick={() => exportarTodasCondicionesOperativas(filtradas)} disabled={!filtradas.length}>Descargar todo (Excel)</button>
       </div>
 
       <div className="card">

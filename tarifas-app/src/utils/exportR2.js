@@ -188,6 +188,64 @@ export function exportarCondicionOperativa(condOp) {
   XLSX.writeFile(wb, `CondicionesOperativas_${condOp.oferente}_${folioTxt}.xlsx`)
 }
 
+/**
+ * Exporta TODAS las condiciones operativas a un único Excel.
+ * Hoja 1: resumen (una fila por oferente).
+ * Hoja 2: gastos FOB planos (una fila por oferente/puerto/cargo).
+ */
+export function exportarTodasCondicionesOperativas(lista) {
+  const wb = XLSX.utils.book_new()
+  const items = lista || []
+
+  // Hoja 1: Resumen
+  const resHeaders = [
+    'Oferente', 'Correo', 'Región', 'Fecha',
+    'Crédito (días)', 'Facturación aplica a partir de',
+    'Herramienta seguimiento', 'Descripción herramienta',
+    'Integración API', 'Recursos operativos', 'Observaciones', 'Observaciones FOB'
+  ]
+  const resRows = [resHeaders]
+  for (const c of items) {
+    const region = Array.isArray(c.region) ? c.region.join(', ') : (c.region || '')
+    resRows.push([
+      c.oferente || '', c.email_contacto || '', region, c.created_at || '',
+      c.credito_dias ?? '', c.facturacion_aplica || '',
+      c.herramienta_seguimiento || '', c.herramienta_descripcion || '',
+      c.integracion_api || '', c.recursos_operativos || '',
+      c.observaciones || '', c.obs_fob || ''
+    ])
+  }
+  const wsRes = XLSX.utils.aoa_to_sheet(resRows)
+  wsRes['!cols'] = [
+    { wch: 24 }, { wch: 26 }, { wch: 12 }, { wch: 20 }, { wch: 14 }, { wch: 26 },
+    { wch: 22 }, { wch: 30 }, { wch: 18 }, { wch: 30 }, { wch: 30 }, { wch: 30 }
+  ]
+  XLSX.utils.book_append_sheet(wb, wsRes, 'Resumen')
+
+  // Hoja 2: Gastos FOB planos
+  const fobHeaders = ['Oferente', 'Puerto', 'Cargo', '20GP (CNY)', '40GP (CNY)', '40HQ (CNY)', 'Unidad', 'Observación']
+  const fobRows = [fobHeaders]
+  for (const c of items) {
+    const fob = parseJson(c.gastos_fob)
+    for (const puerto of PUERTOS_BASE_CHINA) {
+      const pData = fob?.[puerto]
+      for (const cargo of CARGOS_FOB) {
+        const cData = pData?.[cargo.key] || {}
+        fobRows.push([
+          c.oferente || '', `${puerto}, China`, cargo.label,
+          cData['20GP'] ?? '', cData['40GP'] ?? '', cData['40HQ'] ?? '',
+          cData.unidad || '', cData.observacion || ''
+        ])
+      }
+    }
+  }
+  const wsFob = XLSX.utils.aoa_to_sheet(fobRows)
+  wsFob['!cols'] = [{ wch: 24 }, { wch: 20 }, { wch: 26 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 24 }]
+  XLSX.utils.book_append_sheet(wb, wsFob, 'Gastos FOB')
+
+  XLSX.writeFile(wb, `CondicionesOperativas_Todas_${items.length}.xlsx`)
+}
+
 // --- Helpers ---
 function parseJson(v) {
   if (!v) return null

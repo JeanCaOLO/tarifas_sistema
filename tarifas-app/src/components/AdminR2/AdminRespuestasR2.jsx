@@ -245,19 +245,37 @@ function numOrNull(v) {
   return Number.isFinite(n) ? n : null
 }
 
+function regionToArray(region) {
+  if (Array.isArray(region)) return region
+  if (typeof region === 'string') {
+    try { const p = JSON.parse(region); if (Array.isArray(p)) return p } catch { /* noop */ }
+    return region ? region.split(',').map((s) => s.trim()).filter(Boolean) : []
+  }
+  return []
+}
+
 function EditarModal({ submission, tarifas, onClose, onSaved }) {
   const [sub, setSub] = useState(() => ({ ...submission }))
   const [rows, setRows] = useState(() => tarifas.map((t) => ({ ...t })))
+  const [regionSel, setRegionSel] = useState(() => regionToArray(submission.region))
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     setSub({ ...submission })
     setRows(tarifas.map((t) => ({ ...t })))
+    setRegionSel(regionToArray(submission.region))
   }, [submission])
 
   function setSubField(field, value) {
     setSub((prev) => ({ ...prev, [field]: value }))
+  }
+  function toggleRegion(code, checked) {
+    setRegionSel((prev) => {
+      const set = new Set(prev)
+      if (checked) set.add(code); else set.delete(code)
+      return ['CA', 'VE'].filter((c) => set.has(c))
+    })
   }
   function setRowField(idx, field, value) {
     setRows((prev) => {
@@ -273,6 +291,10 @@ function EditarModal({ submission, tarifas, onClose, onSaved }) {
       setError('El nombre del oferente es obligatorio.')
       return
     }
+    if (!regionSel.length) {
+      setError('Selecciona al menos una región (CA o VE).')
+      return
+    }
     setGuardando(true)
     try {
       // 1. Actualizar submission (tabla base)
@@ -284,6 +306,7 @@ function EditarModal({ submission, tarifas, onClose, onSaved }) {
       for (const f of SUB_NUM_FIELDS) {
         subPayload[f] = numOrNull(sub[f])
       }
+      subPayload.region = regionSel
 
       const { error: e1 } = await supabase
         .from('rfp_submissions_r2')
@@ -327,6 +350,12 @@ function EditarModal({ submission, tarifas, onClose, onSaved }) {
             <div className="cbar">Datos generales</div>
             <EditRow label="Oferente"><input type="text" value={sub.oferente || ''} onChange={(e) => setSubField('oferente', e.target.value)} /></EditRow>
             <EditRow label="Correo"><input type="email" value={sub.email_contacto || ''} onChange={(e) => setSubField('email_contacto', e.target.value)} /></EditRow>
+            <EditRow label="Región de participación">
+              <div className="checkbox-group">
+                <label className="cb-label"><input type="checkbox" checked={regionSel.includes('CA')} onChange={(e) => toggleRegion('CA', e.target.checked)} /> CA</label>
+                <label className="cb-label"><input type="checkbox" checked={regionSel.includes('VE')} onChange={(e) => toggleRegion('VE', e.target.checked)} /> VE</label>
+              </div>
+            </EditRow>
           </div>
 
           <div className="cond-list" style={{ marginTop: 14 }}>
