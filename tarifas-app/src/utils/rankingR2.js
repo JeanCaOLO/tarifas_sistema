@@ -298,12 +298,15 @@ export function calcularRankingRegionalR2(tarifas, respuestas, { formRegion, cam
         o.count++
       }
 
-      const avgs = [...oferAvg.entries()].map(([ofer, o]) => ({ ofer, avg: o.sum / o.count }))
+      const avgs = [...oferAvg.entries()].map(([ofer, o]) => ({ ofer, avg: o.sum / o.count, count: o.count }))
       const mejorAvg = avgs.length ? Math.min(...avgs.map((a) => a.avg)) : 0
 
-      for (const { ofer, avg } of avgs) {
+      for (const { ofer, avg, count } of avgs) {
         if (!oferScoresPorRegion[ofer]) oferScoresPorRegion[ofer] = {}
-        oferScoresPorRegion[ofer][reg] = mejorAvg > 0 ? (mejorAvg / avg) * 100 : 0
+        oferScoresPorRegion[ofer][reg] = {
+          score: mejorAvg > 0 ? (mejorAvg / avg) * 100 : 0,
+          avg, mejorAvg, count,
+        }
       }
     }
 
@@ -311,11 +314,15 @@ export function calcularRankingRegionalR2(tarifas, respuestas, { formRegion, cam
       let notaPais = 0
       const detalle = { oferente: ofer }
       for (const [reg, peso] of Object.entries(regionPesos)) {
-        const score = regScores[reg] || 0
+        const info = regScores[reg] || { score: 0, avg: null, mejorAvg: null, count: 0 }
+        const score = info.score || 0
         const contrib = score * (peso / 100)
         notaPais += contrib
         detalle[reg] = Math.round(score * 100) / 100
         detalle[reg + '_contrib'] = Math.round(contrib * 100) / 100
+        detalle[reg + '_avg'] = info.avg != null ? Math.round(info.avg * 100) / 100 : null
+        detalle[reg + '_best'] = info.mejorAvg != null && info.mejorAvg > 0 ? Math.round(info.mejorAvg * 100) / 100 : null
+        detalle[reg + '_rutas'] = info.count || 0
       }
       detalle.notaPais = Math.round(notaPais * 100) / 100
       paisScores[pais][ofer] = detalle

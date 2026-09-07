@@ -126,12 +126,7 @@ export default function AdminRankingRegionalR2() {
                       <td style={{ fontWeight: 800, color: i < 3 ? 'var(--teal-deep)' : 'var(--muted)' }}>{i + 1}</td>
                       <td style={{ fontWeight: 600 }}>{d.oferente}</td>
                       {Object.entries(regionPesos).map(([reg, peso]) => (
-                        <td key={reg} className="td-num num">
-                          <span title="Score de la región (mejor promedio ÷ promedio del oferente × 100)">{(d[reg] || 0).toFixed(1)}</span>
-                          <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>
-                            × {peso}% = <b>{(d[reg + '_contrib'] ?? ((d[reg] || 0) * peso / 100)).toFixed(2)}</b>
-                          </div>
-                        </td>
+                        <td key={reg} className="td-num num"><CeldaRegion d={d} reg={reg} peso={peso} /></td>
                       ))}
                       <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }}>
                         {d.notaPais.toFixed(2)}
@@ -145,12 +140,39 @@ export default function AdminRankingRegionalR2() {
               </table>
             </div>
             <div style={{ padding: '8px 14px', fontSize: 11.5, color: 'var(--muted)', borderTop: '1px solid var(--line, #e5e7eb)' }}>
-              Cada celda de región muestra el <b>score</b> (arriba) y su <b>contribución ponderada</b> (score × peso). La <b>Nota País</b> es la suma de esas contribuciones.
+              Cada celda de región muestra: <b>score</b> (★ = mejor de la región), <b>prom</b> = promedio de tarifa del oferente en esa región, <b>mejor</b> = mejor promedio de la región (obtiene score 100), y la <b>contribución ponderada</b> (score × peso). La <b>Nota País</b> es la suma de esas contribuciones. Como Asia PB pesa {regionPesos['Asia Puertos Base'] ?? '—'}%, un buen desempeño ahí puede colocar a un oferente primero aunque no lidere otras regiones.
             </div>
           </div>
         )
       })}
     </section>
+  )
+}
+
+function CeldaRegion({ d, reg, peso }) {
+  const score = d[reg] || 0
+  const avg = d[reg + '_avg']
+  const best = d[reg + '_best']
+  const rutas = d[reg + '_rutas'] || 0
+  const contrib = d[reg + '_contrib'] ?? (score * peso / 100)
+  const esMejor = avg != null && best != null && Math.abs(avg - best) < 0.01
+
+  if (avg == null) {
+    return <span style={{ color: 'var(--muted)' }}>—</span>
+  }
+
+  return (
+    <div>
+      <div style={{ fontWeight: 700, color: esMejor ? 'var(--teal-deep)' : 'inherit' }}>
+        {score.toFixed(1)}{esMejor ? ' ★' : ''}
+      </div>
+      <div style={{ fontSize: 10.5, color: 'var(--muted)', lineHeight: 1.4 }}>
+        prom: {avg.toFixed(0)}<br />
+        mejor: {best != null ? best.toFixed(0) : '—'}<br />
+        × {peso}% = <b>{contrib.toFixed(2)}</b>
+        {rutas ? <><br /><span style={{ fontSize: 9.5 }}>({rutas} ruta{rutas !== 1 ? 's' : ''})</span></> : null}
+      </div>
+    </div>
   )
 }
 
