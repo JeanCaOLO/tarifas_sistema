@@ -3,9 +3,10 @@ import { AdminContext } from '../../pages/AdminPage'
 import { calcularRankingR2 } from '../../utils/rankingR2'
 import { fmtMoney } from '../../utils/format'
 import { PAISES_MAP } from '../../constantsR2'
+import ExcluirOferentes, { aplicarExclusion } from '../Admin/ExcluirOferentes'
 
 export default function AdminRankingR2() {
-  const { respuestasR2, tarifasR2, condOpR2 } = useContext(AdminContext)
+  const { respuestasR2, tarifasR2, condOpR2, oferentesExcluidos } = useContext(AdminContext)
   const [pais, setPais] = useState('')
   const [campo, setCampo] = useState('tarifa_40_std')
   const [regionFiltro, setRegionFiltro] = useState('')
@@ -29,7 +30,8 @@ export default function AdminRankingR2() {
     }
   })
 
-  const { porRuta, global } = calcularRankingR2(tarifas, respuestas, { pais, campo, regionFiltro, formRegion })
+  const { respuestas: respFilt, tarifas: tarFilt } = aplicarExclusion(respuestas, tarifas, oferentesExcluidos)
+  const { porRuta, global } = calcularRankingR2(tarFilt, respFilt, { pais, campo, regionFiltro, formRegion })
 
   // Agrupar por ruta
   const rutasMap = new Map()
@@ -72,6 +74,8 @@ export default function AdminRankingR2() {
         <span className="spacer" />
         <span className="count-note">{porRuta.length} evaluaciones · {global.length} oferentes</span>
       </div>
+
+      <ExcluirOferentes respuestas={respuestasR2} />
 
       <div className="section-title">Ranking Global R2 por Oferente</div>
       <div className="card" style={{ marginBottom: 22 }}>

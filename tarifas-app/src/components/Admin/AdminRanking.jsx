@@ -3,15 +3,17 @@ import { AdminContext } from '../../pages/AdminPage'
 import { calcularRanking } from '../../utils/ranking'
 import { fmtMoney } from '../../utils/format'
 import { PAISES_MAP } from '../../constants'
+import ExcluirOferentes, { aplicarExclusion } from './ExcluirOferentes'
 
 export default function AdminRanking() {
-  const { respuestas, tarifas } = useContext(AdminContext)
+  const { respuestas, tarifas, oferentesExcluidos } = useContext(AdminContext)
   const [pais, setPais] = useState('')
   const [campo, setCampo] = useState('tarifa_40_std')
   const [regionFiltro, setRegionFiltro] = useState('')
   const [formRegion, setFormRegion] = useState('')
 
-  const { porRuta, global } = calcularRanking(tarifas, respuestas, { pais, campo, regionFiltro, formRegion })
+  const { respuestas: respFilt, tarifas: tarFilt } = aplicarExclusion(respuestas, tarifas, oferentesExcluidos)
+  const { porRuta, global } = calcularRanking(tarFilt, respFilt, { pais, campo, regionFiltro, formRegion })
 
   // Group porRuta by route
   const rutasMap = new Map()
@@ -54,6 +56,8 @@ export default function AdminRanking() {
         <span className="spacer" />
         <span className="count-note">{porRuta.length} evaluaciones · {global.length} oferentes</span>
       </div>
+
+      <ExcluirOferentes respuestas={respuestas} />
 
       <div className="section-title">Ranking Global por Oferente</div>
       <div className="card" style={{ marginBottom: 22 }}>

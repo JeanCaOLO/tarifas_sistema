@@ -2,9 +2,10 @@ import { useState, useContext } from 'react'
 import { AdminContext } from '../../pages/AdminPage'
 import { calcularRankingRegionalR2 } from '../../utils/rankingR2'
 import { PAISES_MAP } from '../../constantsR2'
+import ExcluirOferentes, { aplicarExclusion } from '../Admin/ExcluirOferentes'
 
 export default function AdminRankingRegionalR2() {
-  const { respuestasR2, tarifasR2, condOpR2 } = useContext(AdminContext)
+  const { respuestasR2, tarifasR2, condOpR2, oferentesExcluidos } = useContext(AdminContext)
   const [formRegion, setFormRegion] = useState('CA')
   const [campo, setCampo] = useState('tarifa_40_std')
 
@@ -23,7 +24,8 @@ export default function AdminRankingRegionalR2() {
   })
   const tarifas = tarifasR2 || []
 
-  const { notaFinal, paisDetalles, paisPesos, regionPesos, paisesDestino } = calcularRankingRegionalR2(tarifas, respuestas, { formRegion, campo })
+  const { respuestas: respFilt, tarifas: tarFilt } = aplicarExclusion(respuestas, tarifas, oferentesExcluidos)
+  const { notaFinal, paisDetalles, paisPesos, regionPesos, paisesDestino } = calcularRankingRegionalR2(tarFilt, respFilt, { formRegion, campo })
 
   const regLabels = { America: 'América', Europa: 'Europa', 'Asia Puertos Base': 'Asia PB', Asia: 'Asia' }
 
@@ -63,6 +65,8 @@ export default function AdminRankingRegionalR2() {
           </div>
         </div>
       )}
+
+      <ExcluirOferentes respuestas={respuestasR2} />
 
       <ReglasRankingRegionalR2 regionPesos={regionPesos} paisPesos={paisPesos} regLabels={regLabels} />
 

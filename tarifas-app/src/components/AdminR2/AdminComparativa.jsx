@@ -1,24 +1,23 @@
-import { useState, useContext } from 'react'
+import { useState, useContext, useMemo } from 'react'
 import { AdminContext } from '../../pages/AdminPage'
 import { calcularRanking } from '../../utils/ranking'
 import { calcularRankingR2 } from '../../utils/rankingR2'
 import { PAISES_MAP } from '../../constantsR2'
+import ExcluirOferentes, { aplicarExclusion } from '../Admin/ExcluirOferentes'
 
 /**
  * Vista comparativa: muestra rankings de Etapa 1 y Etapa 2 lado a lado
  * para el mismo oferente, permitiendo ver cómo cambia su posición.
  */
 export default function AdminComparativa() {
-  const { respuestas, tarifas, respuestasR2, tarifasR2, condOpR2 } = useContext(AdminContext)
+  const { respuestas, tarifas, respuestasR2, tarifasR2, condOpR2, oferentesExcluidos } = useContext(AdminContext)
   const [pais, setPais] = useState('')
   const [campo, setCampo] = useState('tarifa_40_std')
   const [formRegion, setFormRegion] = useState('')
   const [vistaMode, setVistaMode] = useState('global') // global | detalle
 
-  const r1Resp = respuestas || []
-  const r1Tarif = tarifas || []
   // Enriquecer respuestas R2 con condiciones operativas
-  const r2Resp = (respuestasR2 || []).map((r) => {
+  const r2RespEnriq = (respuestasR2 || []).map((r) => {
     const condOp = (condOpR2 || []).find((c) =>
       c.oferente.trim().toLowerCase() === r.oferente.trim().toLowerCase()
     )
@@ -30,7 +29,20 @@ export default function AdminComparativa() {
       gastos_fob: r.gastos_fob ?? condOp.gastos_fob
     }
   })
-  const r2Tarif = tarifasR2 || []
+
+  // Aplicar exclusión de oferentes a ambas etapas antes de calcular
+  const { respuestas: r1Resp, tarifas: r1Tarif } = aplicarExclusion(respuestas || [], tarifas || [], oferentesExcluidos)
+  const { respuestas: r2Resp, tarifas: r2Tarif } = aplicarExclusion(r2RespEnriq, tarifasR2 || [], oferentesExcluidos)
+
+  // Lista combinada de oferentes (de ambas etapas) para el panel de exclusión
+  const oferentesTodos = useMemo(() => {
+    const map = new Map()
+    for (const r of [...(respuestas || []), ...(respuestasR2 || [])]) {
+      const key = (r.oferente || '').trim().toLowerCase()
+      if (key && !map.has(key)) map.set(key, { oferente: r.oferente })
+    }
+    return [...map.values()]
+  }, [respuestas, respuestasR2])
 
   // Calcular rankings de ambas etapas
   const { global: globalE1 } = calcularRanking(r1Tarif, r1Resp, { pais, campo, regionFiltro: '', formRegion })
@@ -143,6 +155,8 @@ export default function AdminComparativa() {
           <div className="k-value">{comparativa.filter((c) => !c.e1_pos && c.e2_pos).length}</div>
         </div>
       </div>
+
+      <ExcluirOferentes respuestas={oferentesTodos} />
 
       <div className="section-title">Comparativa de Rankings: Etapa 1 vs Etapa 2</div>
 

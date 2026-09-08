@@ -26,6 +26,21 @@ export default function AdminPage() {
   const [condOpR2, setCondOpR2] = useState([])
   const [etapa, setEtapa] = useState('1') // '1' | '2'
   const [tab, setTab] = useState('respuestas')
+  // Oferentes excluidos del cálculo de rankings (clave: nombre normalizado)
+  const [oferentesExcluidos, setOferentesExcluidos] = useState(() => new Set())
+
+  function toggleOferenteExcluido(nombre) {
+    const key = (nombre || '').trim().toLowerCase()
+    if (!key) return
+    setOferentesExcluidos((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
+  function limpiarExcluidos() {
+    setOferentesExcluidos(new Set())
+  }
 
   async function fetchAll(vista, orden) {
     const out = []
@@ -114,7 +129,8 @@ export default function AdminPage() {
 
   const ctx = {
     user, respuestas, tarifas, respuestasR2, tarifasR2, condOpR2,
-    loading, cargarDatos, logout, tab, setTab, etapa, setEtapa: handleEtapaChange
+    loading, cargarDatos, logout, tab, setTab, etapa, setEtapa: handleEtapaChange,
+    oferentesExcluidos, toggleOferenteExcluido, limpiarExcluidos
   }
 
   return (
