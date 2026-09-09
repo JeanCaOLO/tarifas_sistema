@@ -118,7 +118,12 @@ export function calcularRanking(tarifas, respuestas, { pais, campo, regionFiltro
   const oferMap = new Map()
   for (const r of porRuta) {
     const clave = r.oferente.trim().toLowerCase() + '|' + r.pais
-    if (!oferMap.has(clave)) oferMap.set(clave, { oferente: r.oferente, pais: r.pais, pais_nombre: r.pais_nombre, rutas: 0, sum_tarifa: 0, sum_dias: 0, sum_credito: 0, sum_gastos: 0, sum_herramienta: 0, sum_total: 0 })
+    if (!oferMap.has(clave)) oferMap.set(clave, {
+      oferente: r.oferente, pais: r.pais, pais_nombre: r.pais_nombre, rutas: 0,
+      sum_tarifa: 0, sum_dias: 0, sum_credito: 0, sum_gastos: 0, sum_herramienta: 0, sum_total: 0,
+      // valores originales del oferente
+      val_tarifas: [], val_dias: [], val_credito: r.credito, val_gastos: [], val_herramienta: r.herramienta
+    })
     const o = oferMap.get(clave)
     o.rutas++
     o.sum_tarifa += r.contrib_tarifa
@@ -127,6 +132,15 @@ export function calcularRanking(tarifas, respuestas, { pais, campo, regionFiltro
     o.sum_gastos += r.contrib_gastos
     o.sum_herramienta += r.contrib_herramienta
     o.sum_total += r.puntaje
+    o.val_tarifas.push(r.tarifa)
+    o.val_dias.push(r.diasLibres)
+    if (r.gastoSum > 0) o.val_gastos.push(r.gastoSum)
+  }
+
+  const rango = (arr) => {
+    if (!arr.length) return null
+    const min = Math.min(...arr), max = Math.max(...arr)
+    return { min: Math.round(min * 100) / 100, max: Math.round(max * 100) / 100 }
   }
 
   const global = [...oferMap.values()].map((o) => ({
@@ -136,7 +150,13 @@ export function calcularRanking(tarifas, respuestas, { pais, campo, regionFiltro
     avg_credito: Math.round(o.sum_credito / o.rutas * 100) / 100,
     avg_gastos: Math.round(o.sum_gastos / o.rutas * 100) / 100,
     avg_herramienta: Math.round(o.sum_herramienta / o.rutas * 100) / 100,
-    avg_total: Math.round(o.sum_total / o.rutas * 100) / 100
+    avg_total: Math.round(o.sum_total / o.rutas * 100) / 100,
+    // valores originales para tooltips
+    val_tarifa: rango(o.val_tarifas),
+    val_dias: rango(o.val_dias),
+    val_credito: o.val_credito,
+    val_gastos: rango(o.val_gastos),
+    val_herramienta: o.val_herramienta
   })).sort((a, b) => b.avg_total - a.avg_total)
 
   return { porRuta, global }

@@ -97,13 +97,13 @@ export default function AdminRankingR2() {
                   <td style={{ fontWeight: 600 }}>{o.oferente}</td>
                   <td><span className="badge">{o.pais_nombre}</span></td>
                   <td className="td-num num" title={`Número de rutas evaluadas: ${o.rutas}`}>{o.rutas}</td>
-                  <td className="td-num num" title={`Promedio de la contribución de Tarifa (60%) sobre ${o.rutas} ruta(s). Máx: 60.00`}>{o.avg_tarifa.toFixed(2)}</td>
-                  <td className="td-num num" title={`Promedio de Días libres (5%) sobre ${o.rutas} ruta(s).\nRegla: ≥21 días = 5 · ≥15 días = 1 · resto = 0`}>{o.avg_dias.toFixed(2)}</td>
-                  <td className="td-num num" title={`Promedio de Crédito (5%) sobre ${o.rutas} ruta(s).\n2.5 pts por días de crédito (≥60=2.5 · ≥45=0.5 · resto proporcional) + 2.5 pts si factura al arribo`}>{o.avg_credito.toFixed(2)}</td>
-                  <td className="td-num num" title={`Promedio de Gastos destino (5%) sobre ${o.rutas} ruta(s).\nMenor gasto = 5 · mayor = 1 · intermedio interpolado`}>{o.avg_gastos.toFixed(2)}</td>
-                  <td className="td-num num" title={`Promedio de Allocation (15%) sobre ${o.rutas} ruta(s).\n= (allocation del oferente ÷ mayor allocation) × 15`}>{o.avg_allocation.toFixed(2)}</td>
-                  <td className="td-num num" title={`Promedio de Gastos FOB (5%) sobre ${o.rutas} ruta(s).\n= (menor FOB promedio ÷ FOB del oferente) × 5`}>{o.avg_fob.toFixed(2)}</td>
-                  <td className="td-num num" title={`Promedio de Representación/Oficinas (5%) sobre ${o.rutas} ruta(s).\n= (# "Sí" del oferente ÷ mayor # "Sí") × 5`}>{o.avg_repre.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de la contribución de Tarifa (60%) sobre ${o.rutas} ruta(s).\nTarifa del oferente: ${rangoTxt(o.val_tarifa, '$')}\nMáx: 60.00`}>{o.avg_tarifa.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de Días libres (5%) sobre ${o.rutas} ruta(s).\nValor del oferente: ${rangoTxt(o.val_dias, '', ' días')}\nRegla: ≥21 días = 5 · ≥15 días = 1 · resto = 0`}>{o.avg_dias.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de Crédito (5%) sobre ${o.rutas} ruta(s).\nValor del oferente: ${o.val_credito ?? 0} días · facturación: ${o.val_facturacion || '(no indicada)'}\n2.5 pts por días (≥60=2.5 · ≥45=0.5 · resto proporcional) + 2.5 pts si factura al arribo`}>{o.avg_credito.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de Gastos destino (5%) sobre ${o.rutas} ruta(s).\nGastos del oferente: ${rangoTxt(o.val_gastos, '$')}\nMenor gasto = 5 · mayor = 1 · intermedio interpolado`}>{o.avg_gastos.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de Allocation (15%) sobre ${o.rutas} ruta(s).\nAllocation total del oferente: ${o.val_alloc ?? 0}\n= (allocation del oferente ÷ mayor allocation) × 15`}>{o.avg_allocation.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de Gastos FOB (5%) sobre ${o.rutas} ruta(s).\nFOB promedio del oferente: $${fmtMoney(o.val_fob || 0)}\n= (menor FOB promedio ÷ FOB del oferente) × 5`}>{o.avg_fob.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de Representación/Oficinas (5%) sobre ${o.rutas} ruta(s).\n# de "Sí" del oferente: ${o.val_repre ?? 0}\n= (# "Sí" del oferente ÷ mayor # "Sí") × 5`}>{o.avg_repre.toFixed(2)}</td>
                   <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={`Promedio del puntaje total sobre ${o.rutas} ruta(s).\n= Tarifa ${o.avg_tarifa.toFixed(2)} + Días ${o.avg_dias.toFixed(2)} + Crédito ${o.avg_credito.toFixed(2)} + Gastos ${o.avg_gastos.toFixed(2)} + Alloc. ${o.avg_allocation.toFixed(2)} + FOB ${o.avg_fob.toFixed(2)} + Repr. ${o.avg_repre.toFixed(2)}`}>{o.avg_total.toFixed(2)}</td>
                 </tr>
               ))}
@@ -156,6 +156,13 @@ export default function AdminRankingR2() {
       {!porRuta.length && <div className="empty">No hay datos para calcular ranking R2 por ruta.</div>}
     </section>
   )
+}
+
+// Formatea un rango {min,max} para tooltips (ej. "$1200" o "$1200 – $1500")
+function rangoTxt(rango, prefijo = '', sufijo = '') {
+  if (!rango) return '(sin dato)'
+  const f = (v) => prefijo + fmtMoney(v) + sufijo
+  return rango.min === rango.max ? f(rango.min) : `${f(rango.min)} – ${f(rango.max)}`
 }
 
 // ---- Tooltips Etapa 2: explican qué regla se aplicó para obtener cada valor ----

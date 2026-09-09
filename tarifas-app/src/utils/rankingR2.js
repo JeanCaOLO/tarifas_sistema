@@ -213,7 +213,10 @@ export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFilt
     if (!oferMap.has(clave)) oferMap.set(clave, {
       oferente: r.oferente, pais: r.pais, pais_nombre: r.pais_nombre,
       rutas: 0, sum_tarifa: 0, sum_dias: 0, sum_credito: 0,
-      sum_gastos: 0, sum_allocation: 0, sum_fob: 0, sum_repre: 0, sum_total: 0
+      sum_gastos: 0, sum_allocation: 0, sum_fob: 0, sum_repre: 0, sum_total: 0,
+      // valores originales del oferente
+      val_tarifas: [], val_dias: [], val_credito: r.credito, val_facturacion: r.facturacion,
+      val_gastos: [], val_alloc: r.allocOferente, val_fob: r.fobOferente, val_repre: r.repreOferente
     })
     const o = oferMap.get(clave)
     o.rutas++
@@ -225,6 +228,15 @@ export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFilt
     o.sum_fob += r.contrib_fob
     o.sum_repre += r.contrib_repre
     o.sum_total += r.puntaje
+    o.val_tarifas.push(r.tarifa)
+    o.val_dias.push(r.diasLibres)
+    if (r.gastoSum > 0) o.val_gastos.push(r.gastoSum)
+  }
+
+  const rango = (arr) => {
+    if (!arr.length) return null
+    const min = Math.min(...arr), max = Math.max(...arr)
+    return { min: Math.round(min * 100) / 100, max: Math.round(max * 100) / 100 }
   }
 
   const global = [...oferMap.values()].map((o) => ({
@@ -236,7 +248,16 @@ export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFilt
     avg_allocation: Math.round(o.sum_allocation / o.rutas * 100) / 100,
     avg_fob: Math.round(o.sum_fob / o.rutas * 100) / 100,
     avg_repre: Math.round(o.sum_repre / o.rutas * 100) / 100,
-    avg_total: Math.round(o.sum_total / o.rutas * 100) / 100
+    avg_total: Math.round(o.sum_total / o.rutas * 100) / 100,
+    // valores originales para tooltips
+    val_tarifa: rango(o.val_tarifas),
+    val_dias: rango(o.val_dias),
+    val_credito: o.val_credito,
+    val_facturacion: o.val_facturacion,
+    val_gastos: rango(o.val_gastos),
+    val_alloc: o.val_alloc,
+    val_fob: o.val_fob,
+    val_repre: o.val_repre
   })).sort((a, b) => b.avg_total - a.avg_total)
 
   return { porRuta, global }

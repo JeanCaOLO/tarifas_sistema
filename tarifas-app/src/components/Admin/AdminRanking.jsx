@@ -76,11 +76,11 @@ export default function AdminRanking() {
                   <td style={{ fontWeight: 600 }}>{o.oferente}</td>
                   <td><span className="badge">{o.pais_nombre}</span></td>
                   <td className="td-num num" title={`Número de rutas evaluadas para este oferente: ${o.rutas}`}>{o.rutas}</td>
-                  <td className="td-num num" title={`Promedio de la contribución de Tarifa (80%) sobre ${o.rutas} ruta(s).\nMáximo posible: 80.00`}>{o.avg_tarifa.toFixed(2)}</td>
-                  <td className="td-num num" title={`Promedio de la contribución de Días libres (5%) sobre ${o.rutas} ruta(s).\nRegla por ruta: ≥21 días = 5 · ≥15 días = 1 · resto = 0`}>{o.avg_dias.toFixed(2)}</td>
-                  <td className="td-num num" title={`Promedio de la contribución de Crédito (5%) sobre ${o.rutas} ruta(s).\nRegla por ruta: ≥60 días = 5 · ≥45 días = 1 · resto = 0`}>{o.avg_credito.toFixed(2)}</td>
-                  <td className="td-num num" title={`Promedio de la contribución de Gastos (5%) sobre ${o.rutas} ruta(s).\nRegla por ruta: menor gasto = 5 · mayor = 1 · intermedio interpolado`}>{o.avg_gastos.toFixed(2)}</td>
-                  <td className="td-num num" title={`Promedio de la contribución de Herramienta de seguimiento (5%) sobre ${o.rutas} ruta(s).\nRegla por ruta: tiene herramienta = 5 · no tiene = 0`}>{o.avg_herramienta.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de la contribución de Tarifa (80%) sobre ${o.rutas} ruta(s).\nValor del oferente: ${rangoTxt(o.val_tarifa, '$')}\nMáximo posible: 80.00`}>{o.avg_tarifa.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de la contribución de Días libres (5%) sobre ${o.rutas} ruta(s).\nValor del oferente: ${rangoTxt(o.val_dias, '', ' días')}\nRegla por ruta: ≥21 días = 5 · ≥15 días = 1 · resto = 0`}>{o.avg_dias.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de la contribución de Crédito (5%) sobre ${o.rutas} ruta(s).\nValor del oferente: ${o.val_credito ?? 0} días de crédito\nRegla por ruta: ≥60 días = 5 · ≥45 días = 1 · resto = 0`}>{o.avg_credito.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de la contribución de Gastos (5%) sobre ${o.rutas} ruta(s).\nGastos del oferente: ${rangoTxt(o.val_gastos, '$')}\nRegla por ruta: menor gasto = 5 · mayor = 1 · intermedio interpolado`}>{o.avg_gastos.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de la contribución de Herramienta de seguimiento (5%) sobre ${o.rutas} ruta(s).\nHerramienta declarada: ${o.val_herramienta && o.val_herramienta.trim() ? o.val_herramienta : '(ninguna)'}\nRegla por ruta: tiene herramienta = 5 · no tiene = 0`}>{o.avg_herramienta.toFixed(2)}</td>
                   <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={`Promedio del puntaje total sobre ${o.rutas} ruta(s).\n= Tarifa ${o.avg_tarifa.toFixed(2)} + Días ${o.avg_dias.toFixed(2)} + Crédito ${o.avg_credito.toFixed(2)} + Gastos ${o.avg_gastos.toFixed(2)} + Herram. ${o.avg_herramienta.toFixed(2)}`}>{o.avg_total.toFixed(2)}</td>
                 </tr>
               ))}
@@ -130,6 +130,13 @@ export default function AdminRanking() {
       {!porRuta.length && <div className="empty">No hay datos para calcular ranking por ruta.</div>}
     </section>
   )
+}
+
+// Formatea un rango {min,max} para tooltips (ej. "$1200" o "$1200 – $1500")
+function rangoTxt(rango, prefijo = '', sufijo = '') {
+  if (!rango) return '(sin dato)'
+  const f = (v) => prefijo + fmtMoney(v) + sufijo
+  return rango.min === rango.max ? f(rango.min) : `${f(rango.min)} – ${f(rango.max)}`
 }
 
 // ---- Tooltips: explican qué regla se aplicó para obtener cada valor ----
