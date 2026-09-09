@@ -96,15 +96,15 @@ export default function AdminRankingR2() {
                   </td>
                   <td style={{ fontWeight: 600 }}>{o.oferente}</td>
                   <td><span className="badge">{o.pais_nombre}</span></td>
-                  <td className="td-num num">{o.rutas}</td>
-                  <td className="td-num num">{o.avg_tarifa.toFixed(2)}</td>
-                  <td className="td-num num">{o.avg_dias.toFixed(2)}</td>
-                  <td className="td-num num">{o.avg_credito.toFixed(2)}</td>
-                  <td className="td-num num">{o.avg_gastos.toFixed(2)}</td>
-                  <td className="td-num num">{o.avg_allocation.toFixed(2)}</td>
-                  <td className="td-num num">{o.avg_fob.toFixed(2)}</td>
-                  <td className="td-num num">{o.avg_repre.toFixed(2)}</td>
-                  <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }}>{o.avg_total.toFixed(2)}</td>
+                  <td className="td-num num" title={`Número de rutas evaluadas: ${o.rutas}`}>{o.rutas}</td>
+                  <td className="td-num num" title={`Promedio de la contribución de Tarifa (60%) sobre ${o.rutas} ruta(s). Máx: 60.00`}>{o.avg_tarifa.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de Días libres (5%) sobre ${o.rutas} ruta(s).\nRegla: ≥21 días = 5 · ≥15 días = 1 · resto = 0`}>{o.avg_dias.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de Crédito (5%) sobre ${o.rutas} ruta(s).\n2.5 pts por días de crédito (≥60=2.5 · ≥45=0.5 · resto proporcional) + 2.5 pts si factura al arribo`}>{o.avg_credito.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de Gastos destino (5%) sobre ${o.rutas} ruta(s).\nMenor gasto = 5 · mayor = 1 · intermedio interpolado`}>{o.avg_gastos.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de Allocation (15%) sobre ${o.rutas} ruta(s).\n= (allocation del oferente ÷ mayor allocation) × 15`}>{o.avg_allocation.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de Gastos FOB (5%) sobre ${o.rutas} ruta(s).\n= (menor FOB promedio ÷ FOB del oferente) × 5`}>{o.avg_fob.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de Representación/Oficinas (5%) sobre ${o.rutas} ruta(s).\n= (# "Sí" del oferente ÷ mayor # "Sí") × 5`}>{o.avg_repre.toFixed(2)}</td>
+                  <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={`Promedio del puntaje total sobre ${o.rutas} ruta(s).\n= Tarifa ${o.avg_tarifa.toFixed(2)} + Días ${o.avg_dias.toFixed(2)} + Crédito ${o.avg_credito.toFixed(2)} + Gastos ${o.avg_gastos.toFixed(2)} + Alloc. ${o.avg_allocation.toFixed(2)} + FOB ${o.avg_fob.toFixed(2)} + Repr. ${o.avg_repre.toFixed(2)}`}>{o.avg_total.toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>
@@ -137,15 +137,15 @@ export default function AdminRankingR2() {
                       {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''} {i + 1}
                     </td>
                     <td style={{ fontWeight: 600 }}>{r.oferente} <span className="badge" style={{ fontSize: 10.5, padding: '2px 6px' }}>{r.pais}</span></td>
-                    <td className="td-num num">${fmtMoney(r.tarifa)}</td>
-                    <td className="td-num num">{r.contrib_tarifa.toFixed(2)}</td>
-                    <td className="td-num num">{r.contrib_dias.toFixed(2)}</td>
-                    <td className="td-num num">{r.contrib_credito.toFixed(2)}</td>
-                    <td className="td-num num">{r.contrib_gastos.toFixed(2)}</td>
-                    <td className="td-num num">{r.contrib_allocation.toFixed(2)}</td>
-                    <td className="td-num num">{r.contrib_fob.toFixed(2)}</td>
-                    <td className="td-num num">{r.contrib_repre.toFixed(2)}</td>
-                    <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }}>{r.puntaje.toFixed(2)}</td>
+                    <td className="td-num num" title={`Tarifa cotizada: $${fmtMoney(r.tarifa)}\nMejor tarifa de la ruta: $${fmtMoney(r.mejorTarifa)}`}>${fmtMoney(r.tarifa)}</td>
+                    <td className="td-num num" title={tipTarifaR2(r)}>{r.contrib_tarifa.toFixed(2)}</td>
+                    <td className="td-num num" title={tipDiasR2(r)}>{r.contrib_dias.toFixed(2)}</td>
+                    <td className="td-num num" title={tipCreditoR2(r)}>{r.contrib_credito.toFixed(2)}</td>
+                    <td className="td-num num" title={tipGastosR2(r)}>{r.contrib_gastos.toFixed(2)}</td>
+                    <td className="td-num num" title={tipAllocR2(r)}>{r.contrib_allocation.toFixed(2)}</td>
+                    <td className="td-num num" title={tipFobR2(r)}>{r.contrib_fob.toFixed(2)}</td>
+                    <td className="td-num num" title={tipRepreR2(r)}>{r.contrib_repre.toFixed(2)}</td>
+                    <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={tipTotalR2(r)}>{r.puntaje.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -156,4 +156,72 @@ export default function AdminRankingR2() {
       {!porRuta.length && <div className="empty">No hay datos para calcular ranking R2 por ruta.</div>}
     </section>
   )
+}
+
+// ---- Tooltips Etapa 2: explican qué regla se aplicó para obtener cada valor ----
+function tipTarifaR2(r) {
+  return `TARIFA (60% del puntaje)\n` +
+    `Fórmula: (mejor tarifa de la ruta ÷ tarifa del oferente) × 100 × 60%\n` +
+    `= ($${fmtMoney(r.mejorTarifa)} ÷ $${fmtMoney(r.tarifa)}) × 100 × 60%\n` +
+    `= ${r.contrib_tarifa.toFixed(2)} puntos\n` +
+    `La tarifa más baja de la ruta obtiene el máximo (60).`
+}
+function tipDiasR2(r) {
+  const regla = r.diasLibres >= 21 ? '≥21 días → 5 pts'
+    : r.diasLibres >= 15 ? '≥15 días → 1 pt'
+    : '<15 días → 0 pts'
+  return `DÍAS LIBRES EN DESTINO (5% del puntaje)\n` +
+    `Días libres ofrecidos: ${r.diasLibres}\n` +
+    `Regla: ≥21 = 5 · ≥15 = 1 · <15 = 0\n` +
+    `Aplicó: ${regla} = ${r.contrib_dias.toFixed(2)} puntos`
+}
+function tipCreditoR2(r) {
+  let reglaDias
+  if (r.credito >= 60) reglaDias = '≥60 días → 2.5 pts'
+  else if (r.credito >= 45) reglaDias = '≥45 días → 0.5 pts'
+  else if (r.credito > 0) reglaDias = `${r.credito} días → (${r.credito}÷60)×2.5 proporcional`
+  else reglaDias = 'sin crédito → 0 pts'
+  const arribo = r.facturacion === 'arribo'
+  return `CRÉDITO (5% del puntaje) = días (máx 2.5) + facturación (máx 2.5)\n` +
+    `Días de crédito: ${r.credito} → ${reglaDias}\n` +
+    `Facturación: ${r.facturacion || '(no indicada)'} → ${arribo ? 'al arribo = 2.5 pts' : '0 pts'}\n` +
+    `Total crédito = ${r.contrib_credito.toFixed(2)} puntos`
+}
+function tipGastosR2(r) {
+  let regla
+  if (!r.gastoSum) regla = 'Sin gastos declarados → 0 pts'
+  else if (r.gastoSum <= r.menorGasto) regla = 'Es el menor gasto de la ruta → 5 pts'
+  else if (r.gastoSum >= r.mayorGasto && r.mayorGasto > r.menorGasto) regla = 'Es el mayor gasto de la ruta → 1 pt'
+  else regla = 'Gasto intermedio → interpolado entre 5 y 1'
+  return `GASTOS DESTINO (5% del puntaje)\n` +
+    `Suma de gastos del oferente: $${fmtMoney(r.gastoSum)}\n` +
+    `Menor de la ruta: $${fmtMoney(r.menorGasto)} (5) · Mayor: $${fmtMoney(r.mayorGasto)} (1)\n` +
+    `Aplicó: ${regla} = ${r.contrib_gastos.toFixed(2)} puntos`
+}
+function tipAllocR2(r) {
+  return `ALLOCATION (15% del puntaje)\n` +
+    `Fórmula: (allocation total del oferente ÷ mayor allocation) × 15\n` +
+    `= (${r.allocOferente} ÷ ${r.maxAllocation}) × 15\n` +
+    `= ${r.contrib_allocation.toFixed(2)} puntos\n` +
+    `El oferente con mayor allocation obtiene 15.`
+}
+function tipFobR2(r) {
+  return `GASTOS FOB PUERTOS BASE CHINA (5% del puntaje)\n` +
+    `Fórmula: (menor FOB promedio ÷ FOB promedio del oferente) × 5\n` +
+    `= ($${fmtMoney(r.minFob)} ÷ $${fmtMoney(r.fobOferente)}) × 5\n` +
+    `= ${r.contrib_fob.toFixed(2)} puntos\n` +
+    `El menor FOB promedio obtiene 5.`
+}
+function tipRepreR2(r) {
+  return `REPRESENTACIÓN / OFICINAS (5% del puntaje)\n` +
+    `Fórmula: (# de "Sí" del oferente ÷ mayor # de "Sí") × 5\n` +
+    `= (${r.repreOferente} ÷ ${r.maxRepre}) × 5\n` +
+    `= ${r.contrib_repre.toFixed(2)} puntos\n` +
+    `El oferente con más oficinas/representación obtiene 5.`
+}
+function tipTotalR2(r) {
+  return `PUNTAJE TOTAL DE LA RUTA\n` +
+    `= Tarifa ${r.contrib_tarifa.toFixed(2)} + Días ${r.contrib_dias.toFixed(2)} + Crédito ${r.contrib_credito.toFixed(2)} + Gastos ${r.contrib_gastos.toFixed(2)}\n` +
+    `  + Alloc. ${r.contrib_allocation.toFixed(2)} + FOB ${r.contrib_fob.toFixed(2)} + Repr. ${r.contrib_repre.toFixed(2)}\n` +
+    `= ${r.puntaje.toFixed(2)} puntos (máximo 100)`
 }

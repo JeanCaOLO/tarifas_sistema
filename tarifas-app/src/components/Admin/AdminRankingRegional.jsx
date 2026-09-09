@@ -72,12 +72,12 @@ export default function AdminRankingRegional() {
                   </td>
                   <td style={{ fontWeight: 600 }}>{row.oferente}</td>
                   {paisesDestino?.map((p) => (
-                    <td key={p} className="td-num num">
+                    <td key={p} className="td-num num" title={`Nota País de ${PAISES_MAP[p] || p}: ${(row[p] || 0).toFixed(2)}\nPeso del país en la región: ${paisPesos[p]}%\nContribución = ${(row[p] || 0).toFixed(2)} × ${paisPesos[p]}% = ${((row[p] || 0) * paisPesos[p] / 100).toFixed(2)}`}>
                       {row[p]?.toFixed(2) || '—'}
                       <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>× {paisPesos[p]}% = <b>{((row[p] || 0) * paisPesos[p] / 100).toFixed(2)}</b></div>
                     </td>
                   ))}
-                  <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }}>
+                  <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={`NOTA FINAL = suma de (Nota País × peso del país)\n= ${paisesDestino?.map((p) => `${(row[p] || 0).toFixed(2)}×${paisPesos[p]}%`).join(' + ')}\n= ${paisesDestino?.map((p) => ((row[p] || 0) * paisPesos[p] / 100).toFixed(2)).join(' + ')}\n= ${row.notaFinal.toFixed(2)}`}>
                     {row.notaFinal.toFixed(2)}
                     <div style={{ fontSize: 10.5, fontWeight: 500, color: 'var(--muted)' }}>
                       = {paisesDestino?.map((p) => ((row[p] || 0) * paisPesos[p] / 100).toFixed(2)).join(' + ')}
@@ -117,7 +117,7 @@ export default function AdminRankingRegional() {
                       {Object.entries(regionPesos).map(([reg, peso]) => (
                         <td key={reg} className="td-num num"><CeldaRegion d={d} reg={reg} peso={peso} /></td>
                       ))}
-                      <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }}>
+                      <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={`NOTA PAÍS = suma de contribuciones de cada región\n${Object.entries(regionPesos).map(([reg, peso]) => `${regLabels[reg]}: score ${(d[reg] || 0).toFixed(1)} × ${peso}% = ${(d[reg + '_contrib'] ?? ((d[reg] || 0) * peso / 100)).toFixed(2)}`).join('\n')}\n= ${d.notaPais.toFixed(2)}`}>
                         {d.notaPais.toFixed(2)}
                         <div style={{ fontSize: 10.5, fontWeight: 500, color: 'var(--muted)' }}>
                           = {Object.entries(regionPesos).map(([reg]) => (d[reg + '_contrib'] ?? ((d[reg] || 0) * regionPesos[reg] / 100)).toFixed(2)).join(' + ')}
@@ -147,11 +147,18 @@ function CeldaRegion({ d, reg, peso }) {
   const esMejor = avg != null && best != null && Math.abs(avg - best) < 0.01
 
   if (avg == null) {
-    return <span style={{ color: 'var(--muted)' }}>—</span>
+    return <span style={{ color: 'var(--muted)' }} title={`Sin cotizaciones del oferente en esta región → no contribuye a la Nota País`}>—</span>
   }
 
+  const tip = `SCORE DE LA REGIÓN (peso ${peso}%)\n` +
+    `Fórmula: (mejor promedio de la región ÷ promedio del oferente) × 100\n` +
+    `= (${best != null ? best.toFixed(2) : '—'} ÷ ${avg.toFixed(2)}) × 100\n` +
+    `= ${score.toFixed(1)}${esMejor ? '  ★ es el mejor de la región (obtiene 100)' : ''}\n` +
+    `Promedio del oferente sobre ${rutas} ruta(s) en esta región.\n` +
+    `Contribución = score × ${peso}% = ${contrib.toFixed(2)} a la Nota País.`
+
   return (
-    <div>
+    <div title={tip}>
       <div style={{ fontWeight: 700, color: esMejor ? 'var(--teal-deep)' : 'inherit' }}>
         {score.toFixed(1)}{esMejor ? ' ★' : ''}
       </div>

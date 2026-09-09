@@ -75,13 +75,13 @@ export default function AdminRanking() {
                   <td style={{ fontWeight: 800, color: i < 3 ? 'var(--teal-deep)' : 'var(--muted)' }}>{i + 1}</td>
                   <td style={{ fontWeight: 600 }}>{o.oferente}</td>
                   <td><span className="badge">{o.pais_nombre}</span></td>
-                  <td className="td-num num">{o.rutas}</td>
-                  <td className="td-num num">{o.avg_tarifa.toFixed(2)}</td>
-                  <td className="td-num num">{o.avg_dias.toFixed(2)}</td>
-                  <td className="td-num num">{o.avg_credito.toFixed(2)}</td>
-                  <td className="td-num num">{o.avg_gastos.toFixed(2)}</td>
-                  <td className="td-num num">{o.avg_herramienta.toFixed(2)}</td>
-                  <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }}>{o.avg_total.toFixed(2)}</td>
+                  <td className="td-num num" title={`Número de rutas evaluadas para este oferente: ${o.rutas}`}>{o.rutas}</td>
+                  <td className="td-num num" title={`Promedio de la contribución de Tarifa (80%) sobre ${o.rutas} ruta(s).\nMáximo posible: 80.00`}>{o.avg_tarifa.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de la contribución de Días libres (5%) sobre ${o.rutas} ruta(s).\nRegla por ruta: ≥21 días = 5 · ≥15 días = 1 · resto = 0`}>{o.avg_dias.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de la contribución de Crédito (5%) sobre ${o.rutas} ruta(s).\nRegla por ruta: ≥60 días = 5 · ≥45 días = 1 · resto = 0`}>{o.avg_credito.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de la contribución de Gastos (5%) sobre ${o.rutas} ruta(s).\nRegla por ruta: menor gasto = 5 · mayor = 1 · intermedio interpolado`}>{o.avg_gastos.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de la contribución de Herramienta de seguimiento (5%) sobre ${o.rutas} ruta(s).\nRegla por ruta: tiene herramienta = 5 · no tiene = 0`}>{o.avg_herramienta.toFixed(2)}</td>
+                  <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={`Promedio del puntaje total sobre ${o.rutas} ruta(s).\n= Tarifa ${o.avg_tarifa.toFixed(2)} + Días ${o.avg_dias.toFixed(2)} + Crédito ${o.avg_credito.toFixed(2)} + Gastos ${o.avg_gastos.toFixed(2)} + Herram. ${o.avg_herramienta.toFixed(2)}`}>{o.avg_total.toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>
@@ -113,13 +113,13 @@ export default function AdminRanking() {
                       {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''} {i + 1}
                     </td>
                     <td style={{ fontWeight: 600 }}>{r.oferente} <span className="badge" style={{ fontSize: 10.5, padding: '2px 6px' }}>{r.pais}</span></td>
-                    <td className="td-num num">${fmtMoney(r.tarifa)}</td>
-                    <td className="td-num num">{r.contrib_tarifa.toFixed(2)}</td>
-                    <td className="td-num num">{r.contrib_dias.toFixed(2)}</td>
-                    <td className="td-num num">{r.contrib_credito.toFixed(2)}</td>
-                    <td className="td-num num">{r.contrib_gastos.toFixed(2)}</td>
-                    <td className="td-num num">{r.contrib_herramienta.toFixed(2)}</td>
-                    <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }}>{r.puntaje.toFixed(2)}</td>
+                    <td className="td-num num" title={`Tarifa cotizada: $${fmtMoney(r.tarifa)}\nMejor tarifa de la ruta: $${fmtMoney(r.mejorTarifa)}`}>${fmtMoney(r.tarifa)}</td>
+                    <td className="td-num num" title={tipTarifa(r)}>{r.contrib_tarifa.toFixed(2)}</td>
+                    <td className="td-num num" title={tipDias(r)}>{r.contrib_dias.toFixed(2)}</td>
+                    <td className="td-num num" title={tipCredito(r)}>{r.contrib_credito.toFixed(2)}</td>
+                    <td className="td-num num" title={tipGastos(r)}>{r.contrib_gastos.toFixed(2)}</td>
+                    <td className="td-num num" title={tipHerramienta(r)}>{r.contrib_herramienta.toFixed(2)}</td>
+                    <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={tipTotal(r)}>{r.puntaje.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -130,4 +130,55 @@ export default function AdminRanking() {
       {!porRuta.length && <div className="empty">No hay datos para calcular ranking por ruta.</div>}
     </section>
   )
+}
+
+// ---- Tooltips: explican qué regla se aplicó para obtener cada valor ----
+function tipTarifa(r) {
+  return `TARIFA (80% del puntaje)\n` +
+    `Fórmula: (mejor tarifa de la ruta ÷ tarifa del oferente) × 100 × 80%\n` +
+    `= ($${fmtMoney(r.mejorTarifa)} ÷ $${fmtMoney(r.tarifa)}) × 100 × 80%\n` +
+    `= ${r.contrib_tarifa.toFixed(2)} puntos\n` +
+    `La tarifa más baja de la ruta obtiene el máximo (80).`
+}
+function tipDias(r) {
+  const regla = r.diasLibres >= 21 ? '≥21 días → 5 pts'
+    : r.diasLibres >= 15 ? '≥15 días → 1 pt'
+    : '<15 días → 0 pts'
+  return `DÍAS LIBRES EN DESTINO (5% del puntaje)\n` +
+    `Días libres ofrecidos: ${r.diasLibres}\n` +
+    `Regla: ≥21 = 5 · ≥15 = 1 · <15 = 0\n` +
+    `Aplicó: ${regla} = ${r.contrib_dias.toFixed(2)} puntos`
+}
+function tipCredito(r) {
+  const regla = r.credito >= 60 ? '≥60 días → 5 pts'
+    : r.credito >= 45 ? '≥45 días → 1 pt'
+    : '<45 días → 0 pts'
+  return `CRÉDITO (5% del puntaje)\n` +
+    `Días de crédito ofrecidos: ${r.credito}\n` +
+    `Regla: ≥60 = 5 · ≥45 = 1 · <45 = 0\n` +
+    `Aplicó: ${regla} = ${r.contrib_credito.toFixed(2)} puntos`
+}
+function tipGastos(r) {
+  let regla
+  if (!r.gastoSum) regla = 'Sin gastos declarados → 0 pts'
+  else if (r.gastoSum <= r.menorGasto) regla = 'Es el menor gasto de la ruta → 5 pts'
+  else if (r.gastoSum >= r.mayorGasto && r.mayorGasto > r.menorGasto) regla = 'Es el mayor gasto de la ruta → 1 pt'
+  else regla = 'Gasto intermedio → interpolado entre 5 y 1'
+  return `GASTOS (5% del puntaje)\n` +
+    `Suma de gastos del oferente: $${fmtMoney(r.gastoSum)}\n` +
+    `Menor gasto de la ruta: $${fmtMoney(r.menorGasto)} (obtiene 5)\n` +
+    `Mayor gasto de la ruta: $${fmtMoney(r.mayorGasto)} (obtiene 1)\n` +
+    `Aplicó: ${regla} = ${r.contrib_gastos.toFixed(2)} puntos`
+}
+function tipHerramienta(r) {
+  const tiene = r.herramienta && r.herramienta.trim().length > 0
+  return `HERRAMIENTA DE SEGUIMIENTO (5% del puntaje)\n` +
+    `Herramienta declarada: ${tiene ? r.herramienta : '(ninguna)'}\n` +
+    `Regla: tiene herramienta = 5 · no tiene = 0\n` +
+    `Aplicó: ${tiene ? 'Sí ofrece → 5 pts' : 'No ofrece → 0 pts'} = ${r.contrib_herramienta.toFixed(2)} puntos`
+}
+function tipTotal(r) {
+  return `PUNTAJE TOTAL DE LA RUTA\n` +
+    `= Tarifa ${r.contrib_tarifa.toFixed(2)} + Días ${r.contrib_dias.toFixed(2)} + Crédito ${r.contrib_credito.toFixed(2)} + Gastos ${r.contrib_gastos.toFixed(2)} + Herram. ${r.contrib_herramienta.toFixed(2)}\n` +
+    `= ${r.puntaje.toFixed(2)} puntos (máximo 100)`
 }
