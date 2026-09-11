@@ -2,6 +2,7 @@ import { useState, useContext } from 'react'
 import { AdminContext } from '../../pages/AdminPage'
 import { calcularRankingRegional } from '../../utils/ranking'
 import { PAISES_MAP } from '../../constants'
+import { exportarReporteRegional } from '../../utils/reporteOferente'
 import ExcluirOferentes, { aplicarExclusion } from './ExcluirOferentes'
 
 export default function AdminRankingRegional() {
@@ -10,7 +11,8 @@ export default function AdminRankingRegional() {
   const [campo, setCampo] = useState('tarifa_40_std')
 
   const { respuestas: respFilt, tarifas: tarFilt } = aplicarExclusion(respuestas, tarifas, oferentesExcluidos)
-  const { notaFinal, paisDetalles, paisPesos, regionPesos, paisesDestino } = calcularRankingRegional(tarFilt, respFilt, { formRegion, campo })
+  const resultado = calcularRankingRegional(tarFilt, respFilt, { formRegion, campo })
+  const { notaFinal, paisDetalles, paisPesos, regionPesos, paisesDestino } = resultado
 
   const regLabels = { America: 'América', Europa: 'Europa', 'Asia Puertos Base': 'Asia PB', Asia: 'Asia' }
 
@@ -63,6 +65,7 @@ export default function AdminRankingRegional() {
               <th>#</th><th>Oferente</th>
               {paisesDestino?.map((p) => <th key={p} className="th-num">{PAISES_MAP[p] || p} ({paisPesos[p]}%)</th>)}
               <th className="th-num" style={{ fontWeight: 800 }}>Nota Final</th>
+              <th>Reporte</th>
             </tr></thead>
             <tbody>
               {notaFinal.map((row, i) => (
@@ -83,6 +86,7 @@ export default function AdminRankingRegional() {
                       = {paisesDestino?.map((p) => ((row[p] || 0) * paisPesos[p] / 100).toFixed(2)).join(' + ')}
                     </div>
                   </td>
+                  <td><button className="btn btn-ghost btn-sm" title="Descargar reporte regional de este oferente con sus regiones más bajas" onClick={() => exportarReporteRegional(row.oferente, resultado, '1', formRegion)}>📄 Descargar</button></td>
                 </tr>
               ))}
             </tbody>

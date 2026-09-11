@@ -12,6 +12,8 @@
  * defecto reproducen exactamente el comportamiento previo hardcodeado.
  */
 
+import { supabase } from '../supabase'
+
 const STORAGE_KEY = 'rfp_ranking_config_v1'
 
 /**
@@ -112,49 +114,98 @@ export const RUBRO_LABELS = {
 /**
  * PERSISTENCIA
  * ----------------------------------------------------------------------------
+ * Fuente de verdad: tabla rfp_ranking_config en Supabase (compartida entre
+ * todos los administradores). Se mantiene una caché en memoria para que los
+ * cálculos de ranking (síncronos) puedan leerla, y una copia en localStorage
+ * como respaldo mientras carga o si Supabase no responde.
  */
 
 let _cache = null
 
+/**
+ * Lectura SÍNCRONA de la config vigente (desde caché en memoria o localStorage).
+ * La usan los cálculos de ranking. Si aún no se cargó desde Supabase, devuelve
+ * el respaldo local o los defaults.
+ */
 export function loadConfig() {
   if (_cache) return _cache
   const base = getDefaults()
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const saved = JSON.parse(raw)
-      _cache = deepMerge(base, saved)
-    } else {
-      _cache = base
-    }
+    _cache = raw ? deepMerge(base, JSON.parse(raw)) : base
   } catch {
     _cache = base
   }
   return _cache
 }
 
-export function saveConfig(cfg) {
-  _cache = cfg
+/**
+ * Carga ASÍNCRONA desde Supabase. Llamar al iniciar sesión / cargar datos.
+ * Actualiza la caché y localStorage, y notifica a la app para recalcular.
+ */
+export async function fetchConfig() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg))
+    const { data, error } = await supabase
+      .from('v_rfp_ranking_config')
+      .select('config')
+      .eq('id', 1)
+      .maybeSingle()
+    if (error) throw error
+    const base = getDefaults()
+    if (data && data.config) {
+      _cache = deepMerge(base, data.config)
+    } else {
+      _cache = base
+    }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(_cache)) } catch { /* noop */ }
+    notifyChanged()
+    return _cache
   } catch (e) {
-    console.error('No se pudo guardar la configuración de rankings:', e)
+    console.error('No se pudo cargar la configuración de rankings desde Supabase:', e)
+    // Mantener respaldo local / defaults
+    return loadConfig()
   }
-  // Notificar a la app que la config cambió (para recalcular)
+}
+
+/**
+ * Guarda la config en Supabase (vía RPC, solo admins) y actualiza la caché.
+ * Devuelve { ok, error }.
+ */
+export async function saveConfig(cfg) {
+  _cache = cfg
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg)) } catch { /* noop */ }
+  notifyChanged()
+  try {
+    const { error } = await supabase.rpc('guardar_ranking_config', { p_config: cfg })
+    if (error) throw error
+    return { ok: true }
+  } catch (e) {
+    console.error('No se pudo guardar la configuración de rankings en Supabase:', e)
+    return { ok: false, error: e?.message || 'Error al guardar en Supabase' }
+  }
+}
+
+/**
+ * Restaura los defaults y los persiste en Supabase.
+ */
+export async function resetConfig() {
+  _cache = getDefaults()
+  try { localStorage.removeItem(STORAGE_KEY) } catch { /* noop */ }
+  notifyChanged()
+  try {
+    const { error } = await supabase.rpc('guardar_ranking_config', { p_config: _cache })
+    if (error) throw error
+    return { ok: true, config: _cache }
+  } catch (e) {
+    console.error('No se pudo restaurar la configuración en Supabase:', e)
+    return { ok: false, error: e?.message || 'Error al restaurar en Supabase', config: _cache }
+  }
+}
+
+function notifyChanged() {
   try {
     window.dispatchEvent(new CustomEvent('rankingConfigChanged'))
   } catch { /* SSR / entorno sin window */ }
-}
-
-export function resetConfig() {
-  _cache = getDefaults()
-  try {
-    localStorage.removeItem(STORAGE_KEY)
-  } catch { /* noop */ }
-  try {
-    window.dispatchEvent(new CustomEvent('rankingConfigChanged'))
-  } catch { /* noop */ }
-  return _cache
 }
 
 /**

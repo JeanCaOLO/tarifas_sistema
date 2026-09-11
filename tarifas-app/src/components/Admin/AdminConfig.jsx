@@ -14,6 +14,8 @@ import { PAISES_MAP } from '../../constants'
 export default function AdminConfig() {
   const [cfg, setCfg] = useState(() => JSON.parse(JSON.stringify(loadConfig())))
   const [guardado, setGuardado] = useState(false)
+  const [error, setError] = useState('')
+  const [guardando, setGuardando] = useState(false)
   const [seccion, setSeccion] = useState('E1') // E1 | E2 | E1_REG | E2_REG
 
   const regLabels = { America: 'América', Europa: 'Europa', 'Asia Puertos Base': 'Asia PB', Asia: 'Asia' }
@@ -27,19 +29,32 @@ export default function AdminConfig() {
     setGuardado(false)
   }
 
-  function guardar() {
-    saveConfig(JSON.parse(JSON.stringify(cfg)))
-    setGuardado(true)
-    setTimeout(() => setGuardado(false), 2500)
+  async function guardar() {
+    setGuardando(true)
+    setError('')
+    const res = await saveConfig(JSON.parse(JSON.stringify(cfg)))
+    setGuardando(false)
+    if (res.ok) {
+      setGuardado(true)
+      setTimeout(() => setGuardado(false), 2500)
+    } else {
+      setError(res.error || 'No se pudo guardar en la base de datos.')
+    }
   }
 
-  function restaurar() {
+  async function restaurar() {
     if (!window.confirm('¿Restaurar todos los pesos y reglas a los valores por defecto?')) return
-    const def = getDefaults()
-    resetConfig()
-    setCfg(JSON.parse(JSON.stringify(def)))
-    setGuardado(true)
-    setTimeout(() => setGuardado(false), 2500)
+    setGuardando(true)
+    setError('')
+    const res = await resetConfig()
+    setGuardando(false)
+    setCfg(JSON.parse(JSON.stringify(res.config || getDefaults())))
+    if (res.ok) {
+      setGuardado(true)
+      setTimeout(() => setGuardado(false), 2500)
+    } else {
+      setError(res.error || 'No se pudo restaurar en la base de datos.')
+    }
   }
 
   const sumaE1 = sumaPesos(cfg.E1.pesos)
@@ -62,11 +77,16 @@ export default function AdminConfig() {
         <button className={`btn btn-sm ${seccion === 'E2_REG' ? '' : 'btn-ghost'}`} onClick={() => setSeccion('E2_REG')}>Etapa 2 · Regional</button>
         <span className="spacer" />
         {guardado && <span style={{ color: 'var(--teal-deep)', fontWeight: 700, fontSize: 12.5 }}>✓ Guardado</span>}
-        <button className="btn btn-ghost btn-sm" onClick={restaurar}>Restaurar defaults</button>
-        <button className="btn btn-sm" onClick={guardar} disabled={(seccion === 'E1' && sumaE1 !== 100) || (seccion === 'E2' && sumaE2 !== 100)}>
-          Guardar cambios
+        <button className="btn btn-ghost btn-sm" onClick={restaurar} disabled={guardando}>Restaurar defaults</button>
+        <button className="btn btn-sm" onClick={guardar} disabled={guardando || (seccion === 'E1' && sumaE1 !== 100) || (seccion === 'E2' && sumaE2 !== 100)}>
+          {guardando ? 'Guardando…' : 'Guardar cambios'}
         </button>
       </div>
+      {error && (
+        <div className="card" style={{ padding: '10px 14px', marginBottom: 14, background: '#fde8e8', color: '#c0392b', fontSize: 12.5 }}>
+          ⚠ {error}
+        </div>
+      )}
 
       {seccion === 'E1' && (
         <PesosRubros

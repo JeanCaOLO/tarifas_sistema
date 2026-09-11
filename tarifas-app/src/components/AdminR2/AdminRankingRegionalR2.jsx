@@ -2,6 +2,7 @@ import { useState, useContext } from 'react'
 import { AdminContext } from '../../pages/AdminPage'
 import { calcularRankingRegionalR2 } from '../../utils/rankingR2'
 import { PAISES_MAP } from '../../constantsR2'
+import { exportarReporteRegional } from '../../utils/reporteOferente'
 import ExcluirOferentes, { aplicarExclusion } from '../Admin/ExcluirOferentes'
 
 export default function AdminRankingRegionalR2() {
@@ -25,7 +26,8 @@ export default function AdminRankingRegionalR2() {
   const tarifas = tarifasR2 || []
 
   const { respuestas: respFilt, tarifas: tarFilt } = aplicarExclusion(respuestas, tarifas, oferentesExcluidos)
-  const { notaFinal, paisDetalles, paisPesos, regionPesos, paisesDestino } = calcularRankingRegionalR2(tarFilt, respFilt, { formRegion, campo })
+  const resultado = calcularRankingRegionalR2(tarFilt, respFilt, { formRegion, campo })
+  const { notaFinal, paisDetalles, paisPesos, regionPesos, paisesDestino } = resultado
 
   const regLabels = { America: 'América', Europa: 'Europa', 'Asia Puertos Base': 'Asia PB', Asia: 'Asia' }
 
@@ -78,6 +80,7 @@ export default function AdminRankingRegionalR2() {
               <th>#</th><th>Oferente</th>
               {paisesDestino?.map((p) => <th key={p} className="th-num">{PAISES_MAP[p] || p} ({paisPesos[p]}%)</th>)}
               <th className="th-num" style={{ fontWeight: 800 }}>Nota Final</th>
+              <th>Reporte</th>
             </tr></thead>
             <tbody>
               {notaFinal.map((row, i) => (
@@ -98,6 +101,7 @@ export default function AdminRankingRegionalR2() {
                       = {paisesDestino?.map((p) => ((row[p] || 0) * paisPesos[p] / 100).toFixed(2)).join(' + ')}
                     </div>
                   </td>
+                  <td><button className="btn btn-ghost btn-sm" title="Descargar reporte regional de este oferente con sus regiones más bajas" onClick={() => exportarReporteRegional(row.oferente, resultado, '2', formRegion)}>📄 Descargar</button></td>
                 </tr>
               ))}
             </tbody>

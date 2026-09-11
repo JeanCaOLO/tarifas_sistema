@@ -1,5 +1,6 @@
 import { useState, useEffect, createContext } from 'react'
 import { supabase } from '../supabase'
+import { fetchConfig } from '../utils/rankingConfig'
 import AdminLogin from '../components/Admin/AdminLogin'
 import AdminTopbar from '../components/Admin/AdminTopbar'
 import AdminRespuestas from '../components/Admin/AdminRespuestas'
@@ -68,6 +69,8 @@ export default function AdminPage() {
   async function cargarDatos() {
     setLoading(true)
     try {
+      // Cargar la configuración de rankings (compartida en Supabase) antes de calcular
+      await fetchConfig().catch(() => {})
       const [subs, rates, subsR2, ratesR2, condOp] = await Promise.all([
         fetchAll('v_rfp_respuestas', { col: 'created_at', asc: false }),
         fetchAll('v_rfp_tarifas', { col: 'id', asc: true }),
