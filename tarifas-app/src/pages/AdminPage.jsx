@@ -12,6 +12,7 @@ import AdminRankingR2 from '../components/AdminR2/AdminRankingR2'
 import AdminRankingRegionalR2 from '../components/AdminR2/AdminRankingRegionalR2'
 import AdminComparativa from '../components/AdminR2/AdminComparativa'
 import AdminCondicionesOperativas from '../components/AdminR2/AdminCondicionesOperativas'
+import AdminConfig from '../components/Admin/AdminConfig'
 
 export const AdminContext = createContext(null)
 
@@ -28,6 +29,14 @@ export default function AdminPage() {
   const [tab, setTab] = useState('respuestas')
   // Oferentes excluidos del cálculo de rankings (clave: nombre normalizado)
   const [oferentesExcluidos, setOferentesExcluidos] = useState(() => new Set())
+  // Se incrementa cuando cambia la configuración de pesos/reglas, para recalcular rankings
+  const [configVersion, setConfigVersion] = useState(0)
+
+  useEffect(() => {
+    const onCfgChange = () => setConfigVersion((v) => v + 1)
+    window.addEventListener('rankingConfigChanged', onCfgChange)
+    return () => window.removeEventListener('rankingConfigChanged', onCfgChange)
+  }, [])
 
   function toggleOferenteExcluido(nombre) {
     const key = (nombre || '').trim().toLowerCase()
@@ -130,7 +139,7 @@ export default function AdminPage() {
   const ctx = {
     user, respuestas, tarifas, respuestasR2, tarifasR2, condOpR2,
     loading, cargarDatos, logout, tab, setTab, etapa, setEtapa: handleEtapaChange,
-    oferentesExcluidos, toggleOferenteExcluido, limpiarExcluidos
+    oferentesExcluidos, toggleOferenteExcluido, limpiarExcluidos, configVersion
   }
 
   return (
@@ -139,17 +148,20 @@ export default function AdminPage() {
       <div className="page">
         {loading && <div className="loading"><span className="spin" /><br />Cargando respuestas…</div>}
 
+        {/* Configuración (disponible en ambas etapas) */}
+        {!loading && tab === 'config' && <AdminConfig />}
+
         {/* Etapa 1 tabs */}
         {!loading && etapa === '1' && tab === 'respuestas' && <AdminRespuestas />}
         {!loading && etapa === '1' && tab === 'dashboard' && <AdminDashboard />}
-        {!loading && etapa === '1' && tab === 'ranking' && <AdminRanking />}
-        {!loading && etapa === '1' && tab === 'ranking2' && <AdminRankingRegional />}
+        {!loading && etapa === '1' && tab === 'ranking' && <AdminRanking key={configVersion} />}
+        {!loading && etapa === '1' && tab === 'ranking2' && <AdminRankingRegional key={configVersion} />}
 
         {/* Etapa 2 tabs */}
         {!loading && etapa === '2' && tab === 'respuestas' && <AdminRespuestasR2 />}
         {!loading && etapa === '2' && tab === 'dashboard' && <AdminDashboardR2 />}
-        {!loading && etapa === '2' && tab === 'ranking' && <AdminRankingR2 />}
-        {!loading && etapa === '2' && tab === 'ranking2' && <AdminRankingRegionalR2 />}
+        {!loading && etapa === '2' && tab === 'ranking' && <AdminRankingR2 key={configVersion} />}
+        {!loading && etapa === '2' && tab === 'ranking2' && <AdminRankingRegionalR2 key={configVersion} />}
         {!loading && etapa === '2' && tab === 'condiciones' && <AdminCondicionesOperativas />}
         {!loading && etapa === '2' && tab === 'comparativa' && <AdminComparativa />}
       </div>

@@ -3,10 +3,13 @@ import { AdminContext } from '../../pages/AdminPage'
 import { calcularRanking } from '../../utils/ranking'
 import { fmtMoney } from '../../utils/format'
 import { PAISES_MAP } from '../../constants'
+import { getPesosE1, getReglasE1 } from '../../utils/rankingConfig'
+import { exportarReporteOferente } from '../../utils/reporteOferente'
 import ExcluirOferentes, { aplicarExclusion } from './ExcluirOferentes'
 
 export default function AdminRanking() {
   const { respuestas, tarifas, oferentesExcluidos } = useContext(AdminContext)
+  const pesos = getPesosE1()
   const [pais, setPais] = useState('')
   const [campo, setCampo] = useState('tarifa_40_std')
   const [regionFiltro, setRegionFiltro] = useState('')
@@ -65,9 +68,10 @@ export default function AdminRanking() {
           <table className="grid">
             <thead><tr>
               <th>#</th><th>Oferente</th><th>País</th><th className="th-num">Rutas</th>
-              <th className="th-num">Tarifa (80%)</th><th className="th-num">Días (5%)</th>
-              <th className="th-num">Crédito (5%)</th><th className="th-num">Gastos (5%)</th>
-              <th className="th-num">Herram. (5%)</th><th className="th-num">Total</th>
+              <th className="th-num">Tarifa ({pesos.tarifas}%)</th><th className="th-num">Días ({pesos.dias_libres}%)</th>
+              <th className="th-num">Crédito ({pesos.credito}%)</th><th className="th-num">Gastos ({pesos.gastos_destino}%)</th>
+              <th className="th-num">Herram. ({pesos.herramienta}%)</th><th className="th-num">Total</th>
+              <th>Reporte</th>
             </tr></thead>
             <tbody>
               {global.map((o, i) => (
@@ -76,12 +80,13 @@ export default function AdminRanking() {
                   <td style={{ fontWeight: 600 }}>{o.oferente}</td>
                   <td><span className="badge">{o.pais_nombre}</span></td>
                   <td className="td-num num" title={`Número de rutas evaluadas para este oferente: ${o.rutas}`}>{o.rutas}</td>
-                  <td className="td-num num" title={`Promedio de la contribución de Tarifa (80%) sobre ${o.rutas} ruta(s).\nValor del oferente: ${rangoTxt(o.val_tarifa, '$')}\nMáximo posible: 80.00`}>{o.avg_tarifa.toFixed(2)}</td>
-                  <td className="td-num num" title={`Promedio de la contribución de Días libres (5%) sobre ${o.rutas} ruta(s).\nValor del oferente: ${rangoTxt(o.val_dias, '', ' días')}\nRegla por ruta: ≥21 días = 5 · ≥15 días = 1 · resto = 0`}>{o.avg_dias.toFixed(2)}</td>
-                  <td className="td-num num" title={`Promedio de la contribución de Crédito (5%) sobre ${o.rutas} ruta(s).\nValor del oferente: ${o.val_credito ?? 0} días de crédito\nRegla por ruta: ≥60 días = 5 · ≥45 días = 1 · resto = 0`}>{o.avg_credito.toFixed(2)}</td>
-                  <td className="td-num num" title={`Promedio de la contribución de Gastos (5%) sobre ${o.rutas} ruta(s).\nGastos del oferente: ${rangoTxt(o.val_gastos, '$')}\nRegla por ruta: menor gasto = 5 · mayor = 1 · intermedio interpolado`}>{o.avg_gastos.toFixed(2)}</td>
-                  <td className="td-num num" title={`Promedio de la contribución de Herramienta de seguimiento (5%) sobre ${o.rutas} ruta(s).\nHerramienta declarada: ${o.val_herramienta && o.val_herramienta.trim() ? o.val_herramienta : '(ninguna)'}\nRegla por ruta: tiene herramienta = 5 · no tiene = 0`}>{o.avg_herramienta.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de la contribución de Tarifa (${pesos.tarifas}%) sobre ${o.rutas} ruta(s).\nValor del oferente: ${rangoTxt(o.val_tarifa, '$')}\nMáximo posible: ${pesos.tarifas}.00`}>{o.avg_tarifa.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de la contribución de Días libres (${pesos.dias_libres}%) sobre ${o.rutas} ruta(s).\nValor del oferente: ${rangoTxt(o.val_dias, '', ' días')}`}>{o.avg_dias.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de la contribución de Crédito (${pesos.credito}%) sobre ${o.rutas} ruta(s).\nValor del oferente: ${o.val_credito ?? 0} días de crédito`}>{o.avg_credito.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de la contribución de Gastos (${pesos.gastos_destino}%) sobre ${o.rutas} ruta(s).\nGastos del oferente: ${rangoTxt(o.val_gastos, '$')}`}>{o.avg_gastos.toFixed(2)}</td>
+                  <td className="td-num num" title={`Promedio de la contribución de Herramienta de seguimiento (${pesos.herramienta}%) sobre ${o.rutas} ruta(s).\nHerramienta declarada: ${o.val_herramienta && o.val_herramienta.trim() ? o.val_herramienta : '(ninguna)'}`}>{o.avg_herramienta.toFixed(2)}</td>
                   <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={`Promedio del puntaje total sobre ${o.rutas} ruta(s).\n= Tarifa ${o.avg_tarifa.toFixed(2)} + Días ${o.avg_dias.toFixed(2)} + Crédito ${o.avg_credito.toFixed(2)} + Gastos ${o.avg_gastos.toFixed(2)} + Herram. ${o.avg_herramienta.toFixed(2)}`}>{o.avg_total.toFixed(2)}</td>
+                  <td><button className="btn btn-ghost btn-sm" title="Descargar reporte de este oferente con sus rubros más bajos" onClick={() => exportarReporteOferente(o, '1')}>📄 Descargar</button></td>
                 </tr>
               ))}
             </tbody>
@@ -140,49 +145,59 @@ function rangoTxt(rango, prefijo = '', sufijo = '') {
 }
 
 // ---- Tooltips: explican qué regla se aplicó para obtener cada valor ----
+// (leen los pesos y reglas vigentes desde la configuración)
 function tipTarifa(r) {
-  return `TARIFA (80% del puntaje)\n` +
-    `Fórmula: (mejor tarifa de la ruta ÷ tarifa del oferente) × 100 × 80%\n` +
-    `= ($${fmtMoney(r.mejorTarifa)} ÷ $${fmtMoney(r.tarifa)}) × 100 × 80%\n` +
+  const p = getPesosE1().tarifas
+  return `TARIFA (${p}% del puntaje)\n` +
+    `Fórmula: (mejor tarifa de la ruta ÷ tarifa del oferente) × 100 × ${p}%\n` +
+    `= ($${fmtMoney(r.mejorTarifa)} ÷ $${fmtMoney(r.tarifa)}) × 100 × ${p}%\n` +
     `= ${r.contrib_tarifa.toFixed(2)} puntos\n` +
-    `La tarifa más baja de la ruta obtiene el máximo (80).`
+    `La tarifa más baja de la ruta obtiene el máximo (${p}).`
 }
 function tipDias(r) {
-  const regla = r.diasLibres >= 21 ? '≥21 días → 5 pts'
-    : r.diasLibres >= 15 ? '≥15 días → 1 pt'
-    : '<15 días → 0 pts'
-  return `DÍAS LIBRES EN DESTINO (5% del puntaje)\n` +
+  const p = getPesosE1().dias_libres
+  const g = getReglasE1().dias
+  const regla = r.diasLibres >= g.alto.min ? `≥${g.alto.min} días → ${g.alto.pts} pts`
+    : r.diasLibres >= g.medio.min ? `≥${g.medio.min} días → ${g.medio.pts} pts`
+    : `<${g.medio.min} días → ${g.bajo ?? 0} pts`
+  return `DÍAS LIBRES EN DESTINO (${p}% del puntaje)\n` +
     `Días libres ofrecidos: ${r.diasLibres}\n` +
-    `Regla: ≥21 = 5 · ≥15 = 1 · <15 = 0\n` +
+    `Regla: ≥${g.alto.min} = ${g.alto.pts} · ≥${g.medio.min} = ${g.medio.pts} · resto = ${g.bajo ?? 0}\n` +
     `Aplicó: ${regla} = ${r.contrib_dias.toFixed(2)} puntos`
 }
 function tipCredito(r) {
-  const regla = r.credito >= 60 ? '≥60 días → 5 pts'
-    : r.credito >= 45 ? '≥45 días → 1 pt'
-    : '<45 días → 0 pts'
-  return `CRÉDITO (5% del puntaje)\n` +
+  const p = getPesosE1().credito
+  const g = getReglasE1().credito
+  const regla = r.credito >= g.alto.min ? `≥${g.alto.min} días → ${g.alto.pts} pts`
+    : r.credito >= g.medio.min ? `≥${g.medio.min} días → ${g.medio.pts} pts`
+    : `<${g.medio.min} días → ${g.bajo ?? 0} pts`
+  return `CRÉDITO (${p}% del puntaje)\n` +
     `Días de crédito ofrecidos: ${r.credito}\n` +
-    `Regla: ≥60 = 5 · ≥45 = 1 · <45 = 0\n` +
+    `Regla: ≥${g.alto.min} = ${g.alto.pts} · ≥${g.medio.min} = ${g.medio.pts} · resto = ${g.bajo ?? 0}\n` +
     `Aplicó: ${regla} = ${r.contrib_credito.toFixed(2)} puntos`
 }
 function tipGastos(r) {
+  const p = getPesosE1().gastos_destino
+  const g = getReglasE1().gastos
   let regla
   if (!r.gastoSum) regla = 'Sin gastos declarados → 0 pts'
-  else if (r.gastoSum <= r.menorGasto) regla = 'Es el menor gasto de la ruta → 5 pts'
-  else if (r.gastoSum >= r.mayorGasto && r.mayorGasto > r.menorGasto) regla = 'Es el mayor gasto de la ruta → 1 pt'
-  else regla = 'Gasto intermedio → interpolado entre 5 y 1'
-  return `GASTOS (5% del puntaje)\n` +
+  else if (r.gastoSum <= r.menorGasto) regla = `Es el menor gasto de la ruta → ${g.mejorPts} pts`
+  else if (r.gastoSum >= r.mayorGasto && r.mayorGasto > r.menorGasto) regla = `Es el mayor gasto de la ruta → ${g.peorPts} pts`
+  else regla = `Gasto intermedio → interpolado entre ${g.mejorPts} y ${g.peorPts}`
+  return `GASTOS (${p}% del puntaje)\n` +
     `Suma de gastos del oferente: $${fmtMoney(r.gastoSum)}\n` +
-    `Menor gasto de la ruta: $${fmtMoney(r.menorGasto)} (obtiene 5)\n` +
-    `Mayor gasto de la ruta: $${fmtMoney(r.mayorGasto)} (obtiene 1)\n` +
+    `Menor gasto de la ruta: $${fmtMoney(r.menorGasto)} (obtiene ${g.mejorPts})\n` +
+    `Mayor gasto de la ruta: $${fmtMoney(r.mayorGasto)} (obtiene ${g.peorPts})\n` +
     `Aplicó: ${regla} = ${r.contrib_gastos.toFixed(2)} puntos`
 }
 function tipHerramienta(r) {
+  const p = getPesosE1().herramienta
+  const g = getReglasE1().herramienta
   const tiene = r.herramienta && r.herramienta.trim().length > 0
-  return `HERRAMIENTA DE SEGUIMIENTO (5% del puntaje)\n` +
+  return `HERRAMIENTA DE SEGUIMIENTO (${p}% del puntaje)\n` +
     `Herramienta declarada: ${tiene ? r.herramienta : '(ninguna)'}\n` +
-    `Regla: tiene herramienta = 5 · no tiene = 0\n` +
-    `Aplicó: ${tiene ? 'Sí ofrece → 5 pts' : 'No ofrece → 0 pts'} = ${r.contrib_herramienta.toFixed(2)} puntos`
+    `Regla: tiene herramienta = ${g.si} · no tiene = ${g.no}\n` +
+    `Aplicó: ${tiene ? `Sí ofrece → ${g.si} pts` : `No ofrece → ${g.no} pts`} = ${r.contrib_herramienta.toFixed(2)} puntos`
 }
 function tipTotal(r) {
   return `PUNTAJE TOTAL DE LA RUTA\n` +

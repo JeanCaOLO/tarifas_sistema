@@ -1,11 +1,24 @@
 import { REGION_POR_ORIGEN, RK2_CONFIG, PAISES_MAP } from '../constants'
 import { numOrNull } from './format'
+import { getPesosE1, getReglasE1, getRegionalE1 } from './rankingConfig'
+
+/**
+ * Aplica una regla de tramos {alto:{min,pts}, medio:{min,pts}, bajo} a un valor.
+ */
+function puntosPorTramo(valor, regla) {
+  if (regla.alto && valor >= regla.alto.min) return regla.alto.pts
+  if (regla.medio && valor >= regla.medio.min) return regla.medio.pts
+  return regla.bajo ?? 0
+}
 
 /**
  * Ranking 1: Calcula puntaje por oferente/ruta
+ * Pesos y reglas configurables (ver rankingConfig). Por defecto:
  * 80% tarifa + 5% días libres + 5% crédito + 5% gastos + 5% herramienta
  */
 export function calcularRanking(tarifas, respuestas, { pais, campo, regionFiltro, formRegion }) {
+  const pesos = getPesosE1()
+  const reglas = getReglasE1()
   let rates = (pais ? tarifas.filter((t) => t.pais === pais) : tarifas)
     .filter((t) => t[campo] !== null && Number(t[campo]) > 0)
 
@@ -65,31 +78,31 @@ export function calcularRanking(tarifas, respuestas, { pais, campo, regionFiltro
 
       const tarifa = Number(t[campo])
       const puntTarifa = mejorTarifa > 0 ? (mejorTarifa / tarifa) * 100 : 0
-      const contrib_tarifa = puntTarifa * 0.80
+      const contrib_tarifa = puntTarifa * (pesos.tarifas / 100)
 
       const diasLibres = t.dias_libres_destino !== null ? Number(t.dias_libres_destino) : 0
-      let contrib_dias = 0
-      if (diasLibres >= 21) contrib_dias = 5
-      else if (diasLibres >= 15) contrib_dias = 1
+      const contrib_dias = puntosPorTramo(diasLibres, reglas.dias)
 
       const credito = sub.credito_dias !== null ? Number(sub.credito_dias) : 0
-      let contrib_credito = 0
-      if (credito >= 60) contrib_credito = 5
-      else if (credito >= 45) contrib_credito = 1
+      const contrib_credito = puntosPorTramo(credito, reglas.credito)
 
       const gastoSum = gastosArr[idx] || 0
+      const mejorPts = reglas.gastos?.mejorPts ?? 5
+      const peorPts = reglas.gastos?.peorPts ?? 1
       let contrib_gastos = 0
       if (gastosValidos.length > 0 && gastoSum > 0) {
-        if (gastoSum <= menorGasto) contrib_gastos = 5
-        else if (gastoSum >= mayorGasto && mayorGasto > menorGasto) contrib_gastos = 1
+        if (gastoSum <= menorGasto) contrib_gastos = mejorPts
+        else if (gastoSum >= mayorGasto && mayorGasto > menorGasto) contrib_gastos = peorPts
         else if (mayorGasto > menorGasto) {
           const ratio = (gastoSum - menorGasto) / (mayorGasto - menorGasto)
-          contrib_gastos = 5 - ratio * 4
-        } else contrib_gastos = 5
+          contrib_gastos = mejorPts - ratio * (mejorPts - peorPts)
+        } else contrib_gastos = mejorPts
       }
 
       const herramienta = sub.herramienta_seguimiento
-      const contrib_herramienta = (herramienta && herramienta.trim().length > 0) ? 5 : 0
+      const contrib_herramienta = (herramienta && herramienta.trim().length > 0)
+        ? (reglas.herramienta?.si ?? 5)
+        : (reglas.herramienta?.no ?? 0)
       const puntajeTotal = contrib_tarifa + contrib_dias + contrib_credito + contrib_gastos + contrib_herramienta
 
       porRuta.push({
@@ -166,7 +179,7 @@ export function calcularRanking(tarifas, respuestas, { pais, campo, regionFiltro
  * Ranking 2: Regional (CA/VE)
  */
 export function calcularRankingRegional(tarifas, respuestas, { formRegion, campo }) {
-  const config = RK2_CONFIG[formRegion]
+  const config = getRegionalE1()[formRegion]
   if (!config) return { notaFinal: [], paisDetalles: {}, paisPesos: {} }
 
   const { regionPesos, paisPesos } = config

@@ -1,5 +1,15 @@
 import { REGION_POR_ORIGEN, PESOS_R2, RK2_CONFIG_R2, PAISES_MAP, PUERTOS_BASE_CHINA } from '../constantsR2'
 import { numOrNull } from './format'
+import { getPesosE2, getReglasE2, getRegionalE2 } from './rankingConfig'
+
+/**
+ * Aplica una regla de tramos {alto:{min,pts}, medio:{min,pts}} a un valor.
+ */
+function puntosPorTramoR2(valor, regla) {
+  if (regla.alto && valor >= regla.alto.min) return regla.alto.pts
+  if (regla.medio && valor >= regla.medio.min) return regla.medio.pts
+  return 0
+}
 
 /**
  * Ranking Etapa 2: Calcula puntaje por oferente/ruta
@@ -14,6 +24,8 @@ import { numOrNull } from './format'
  *    5% Representación/Oficinas (mayor # de "Sí" = 5, resto proporcional)
  */
 export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFiltro, formRegion }) {
+  const pesos = getPesosE2()
+  const reglas = getReglasE2()
   let rates = (pais ? tarifas.filter((t) => t.pais === pais) : tarifas)
     .filter((t) => t[campo] !== null && Number(t[campo]) > 0)
 
@@ -114,61 +126,62 @@ export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFilt
 
       const oferKey = (t.oferente || sub.oferente || '').trim().toLowerCase()
 
-      // 1. Tarifa (60%)
+      // 1. Tarifa (peso configurable)
       const tarifa = Number(t[campo])
       const puntTarifa = mejorTarifa > 0 ? (mejorTarifa / tarifa) * 100 : 0
-      const contrib_tarifa = puntTarifa * (PESOS_R2.tarifas / 100)
+      const contrib_tarifa = puntTarifa * (pesos.tarifas / 100)
 
-      // 2. Días libres destino (5%) — misma escala que E1
+      // 2. Días libres destino — tramos configurables
       const diasLibres = t.dias_libres_destino !== null ? Number(t.dias_libres_destino) : 0
-      let contrib_dias = 0
-      if (diasLibres >= 21) contrib_dias = 5
-      else if (diasLibres >= 15) contrib_dias = 1
+      const contrib_dias = puntosPorTramoR2(diasLibres, reglas.dias)
 
-      // 3. Crédito (5%) — 2.5 por días + 2.5 por facturación arribo
+      // 3. Crédito — puntos por días + puntos por facturación al arribo (configurable)
       const credito = sub.credito_dias !== null ? Number(sub.credito_dias) : 0
+      const cr = reglas.credito || {}
+      const creditoDiasMax = cr.creditoDiasMax ?? 2.5
+      const crDias = cr.dias || { alto: { min: 60, pts: 2.5 }, medio: { min: 45, pts: 0.5 } }
       let contrib_credito_dias = 0
-      if (credito >= 60) contrib_credito_dias = 2.5
-      else if (credito >= 45) contrib_credito_dias = 0.5
-      else if (credito > 0) {
-        contrib_credito_dias = (credito / 60) * 2.5
-      }
+      if (crDias.alto && credito >= crDias.alto.min) contrib_credito_dias = crDias.alto.pts
+      else if (crDias.medio && credito >= crDias.medio.min) contrib_credito_dias = crDias.medio.pts
+      else if (credito > 0) contrib_credito_dias = (credito / (crDias.alto?.min || 60)) * creditoDiasMax
 
       const facturacion = sub.facturacion_aplica || ''
-      const contrib_credito_arribo = facturacion === 'arribo' ? 2.5 : 0
+      const contrib_credito_arribo = facturacion === 'arribo' ? (cr.facturacionArriboPts ?? 2.5) : 0
       const contrib_credito = contrib_credito_dias + contrib_credito_arribo
 
-      // 4. Gastos destino (5%)
+      // 4. Gastos destino — interpolación configurable
       const gastoSum = gastosArr[idx] || 0
+      const mejorPts = reglas.gastos?.mejorPts ?? 5
+      const peorPts = reglas.gastos?.peorPts ?? 1
       let contrib_gastos = 0
       if (gastosValidos.length > 0 && gastoSum > 0) {
-        if (gastoSum <= menorGasto) contrib_gastos = 5
-        else if (gastoSum >= mayorGasto && mayorGasto > menorGasto) contrib_gastos = 1
+        if (gastoSum <= menorGasto) contrib_gastos = mejorPts
+        else if (gastoSum >= mayorGasto && mayorGasto > menorGasto) contrib_gastos = peorPts
         else if (mayorGasto > menorGasto) {
           const ratio = (gastoSum - menorGasto) / (mayorGasto - menorGasto)
-          contrib_gastos = 5 - ratio * 4
-        } else contrib_gastos = 5
+          contrib_gastos = mejorPts - ratio * (mejorPts - peorPts)
+        } else contrib_gastos = mejorPts
       }
 
-      // 5. Allocation (15%) — proporcional al mayor
+      // 5. Allocation — proporcional al mayor (peso configurable)
       const allocOferente = allocationPorOferente.get(oferKey) || 0
       let contrib_allocation = 0
       if (maxAllocation > 0 && allocOferente > 0) {
-        contrib_allocation = (allocOferente / maxAllocation) * 15
+        contrib_allocation = (allocOferente / maxAllocation) * pesos.allocation
       }
 
-      // 6. Gastos FOB promedio (5%) — menor = 5, proporcional
+      // 6. Gastos FOB promedio — menor = máximo, proporcional (peso configurable)
       const fobOferente = fobPorOferente.get(oferKey) || 0
       let contrib_fob = 0
       if (minFob > 0 && fobOferente > 0) {
-        contrib_fob = (minFob / fobOferente) * 5
+        contrib_fob = (minFob / fobOferente) * pesos.gastos_fob
       }
 
-      // 7. Representación/Oficinas (5%) — mayor # Sí = 5, proporcional
+      // 7. Representación/Oficinas — mayor # Sí = máximo, proporcional (peso configurable)
       const repreOferente = reprePorOferente.get(oferKey) || 0
       let contrib_repre = 0
       if (maxRepre > 0 && repreOferente > 0) {
-        contrib_repre = (repreOferente / maxRepre) * 5
+        contrib_repre = (repreOferente / maxRepre) * pesos.representacion
       }
 
       const puntajeTotal = contrib_tarifa + contrib_dias + contrib_credito +
@@ -268,7 +281,7 @@ export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFilt
  * Misma lógica que E1 pero sobre datos de ronda 2
  */
 export function calcularRankingRegionalR2(tarifas, respuestas, { formRegion, campo }) {
-  const config = RK2_CONFIG_R2[formRegion]
+  const config = getRegionalE2()[formRegion]
   if (!config) return { notaFinal: [], paisDetalles: {}, paisPesos: {}, regionPesos: {}, paisesDestino: [] }
 
   const { regionPesos, paisPesos } = config
