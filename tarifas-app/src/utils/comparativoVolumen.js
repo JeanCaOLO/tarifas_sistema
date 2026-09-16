@@ -224,6 +224,34 @@ export function exportarComparativoVolumen(comp, { etapa, periodo, campo, paisFi
   wsGlobal['!cols'] = [{ wch: 5 }, { wch: 28 }, { wch: 14 }, { wch: 15 }, { wch: 14 }, { wch: 24 }, { wch: 16 }, { wch: 16 }, { wch: 15 }, { wch: 8 }, { wch: 16 }]
   XLSX.utils.book_append_sheet(wb, wsGlobal, 'Ranking por Costo')
 
+  // Hoja: comparativo por ruta (país destino + puerto de origen)
+  const rutasMap = new Map()
+  for (const d of comp.detalle || []) {
+    if (!(d.costo > 0)) continue
+    const clave = d.pais + '|' + d.origen
+    if (!rutasMap.has(clave)) rutasMap.set(clave, [])
+    rutasMap.get(clave).push(d)
+  }
+  const rutasArr = [...rutasMap.entries()]
+    .map(([, items]) => items.sort((a, b) => a.costo - b.costo))
+    .sort((a, b) => (a[0].pais_nombre || a[0].pais).localeCompare(b[0].pais_nombre || b[0].pais, 'es') || a[0].origen.localeCompare(b[0].origen, 'es'))
+  if (rutasArr.length) {
+    const rHead = ['País', 'Ruta (origen)', 'Región', 'Volumen (TEUs)', '#', 'Oferente', 'Tarifa', 'Costo', 'Gap vs #1']
+    const rRows = []
+    for (const items of rutasArr) {
+      const mejor = items[0]
+      items.forEach((d, i) => {
+        rRows.push([
+          d.pais_nombre || d.pais, d.origen, d.region, d.volumen,
+          i + 1, d.oferente, r2(d.tarifa), r2(d.costo), i === 0 ? 0 : r2(d.costo - mejor.costo)
+        ])
+      })
+    }
+    const wsRutas = XLSX.utils.aoa_to_sheet([rHead, ...rRows])
+    wsRutas['!cols'] = [{ wch: 14 }, { wch: 24 }, { wch: 16 }, { wch: 14 }, { wch: 4 }, { wch: 28 }, { wch: 12 }, { wch: 16 }, { wch: 14 }]
+    XLSX.utils.book_append_sheet(wb, wsRutas, 'Por Ruta')
+  }
+
   // Hoja: puertos con volumen SIN cotización (no se comparan)
   if (comp.sinCotizacion && comp.sinCotizacion.length) {
     const sHead = ['País', 'Puerto Origen', 'Región', 'Volumen (TEUs)', 'Nota']

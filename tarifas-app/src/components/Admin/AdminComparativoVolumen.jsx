@@ -57,6 +57,45 @@ export default function AdminComparativoVolumen() {
     [porRuta, volumenes, periodo, paisFiltro, divNum]
   )
 
+  // Comparativo por ruta (país destino + puerto de origen): oferentes ordenados
+  // por costo, con el mejor destacado. Solo rutas con volumen (costo > 0).
+  // Agrupadas por región de origen (America, Europa, Asia, Asia PB).
+  const rutasPorRegion = useMemo(() => {
+    const map = new Map()
+    for (const d of comp.detalle) {
+      if (!(d.costo > 0)) continue
+      const clave = d.pais + '|' + d.origen
+      if (!map.has(clave)) map.set(clave, {
+        pais: d.pais, pais_nombre: d.pais_nombre, origen: d.origen, region: d.region,
+        volumen: d.volumen, items: []
+      })
+      map.get(clave).items.push(d)
+    }
+    const rutas = [...map.values()]
+    for (const r of rutas) r.items.sort((a, b) => a.costo - b.costo)
+
+    // Agrupar rutas por región canónica
+    const porReg = {}
+    for (const reg of REGIONES) porReg[reg] = []
+    for (const r of rutas) {
+      const reg = REGIONES.includes(r.region) ? r.region : 'Asia'
+      porReg[reg].push(r)
+    }
+    // Ordenar rutas dentro de cada región y calcular tarifa promedio de la región
+    const out = []
+    for (const reg of REGIONES) {
+      const lista = porReg[reg]
+      if (!lista.length) continue
+      lista.sort((a, b) => (a.pais_nombre || a.pais).localeCompare(b.pais_nombre || b.pais, 'es') || a.origen.localeCompare(b.origen, 'es'))
+      // Tarifa promedio = promedio de las tarifas de todas las cotizaciones de la región
+      let sumaTarifa = 0, nTarifa = 0
+      for (const r of lista) for (const d of r.items) { sumaTarifa += d.tarifa; nTarifa++ }
+      const tarifaProm = nTarifa ? sumaTarifa / nTarifa : 0
+      out.push({ region: reg, rutas: lista, tarifaProm, nRutas: lista.length })
+    }
+    return out
+  }, [comp])
+
   const hayVolumen = (volumenes || []).length > 0
 
   return (
@@ -205,6 +244,82 @@ export default function AdminComparativoVolumen() {
           <div className="empty">No hay costo calculable. Verifica que haya volumen cargado y tarifas para el país seleccionado.</div>
         )}
       </div>
+
+      {/* Comparativo por ruta según país */}
+      <div className="section-title" style={{ marginTop: 24 }}>Comparativo por Ruta (según país)</div>
+      <div className="card" style={{ padding: '10px 14px', marginBottom: 10, fontSize: 12.5, lineHeight: 1.5 }}>
+        Para cada ruta (país destino + puerto de origen) se listan los oferentes ordenados por
+        <b> costo = (volumen ÷ {divNum}) × tarifa</b>. El 🥇 es el más barato de esa ruta.
+      </div>
+      {rutasPorRegion.map((grupo) => (
+        <div key={grupo.region} style={{ marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0 8px', padding: '8px 14px', background: 'var(--teal-deep, #0f5f57)', color: '#fff', borderRadius: 6, fontWeight: 800, fontSize: 14 }}>
+            <span>🌎 {REG_LABELS[grupo.region] || grupo.region}</span>
+            <span style={{ opacity: 0.85, fontWeight: 600, fontSize: 12.5 }}>{grupo.nRutas} ruta{grupo.nRutas !== 1 ? 's' : ''}</span>
+            <span className="spacer" style={{ flex: 1 }} />
+            <span style={{ fontWeight: 700, fontSize: 12.5 }}>Tarifa promedio región: ${fmtMoney(grupo.tarifaProm)}</span>
+          </div>
+          {grupo.rutas.map((r) => {
+            const mejor = r.items[0]
+            const tarifaMin = Math.min(...r.items.map((d) => d.tarifa))
+            const tarifaMax = Math.max(...r.items.map((d) => d.tarifa))
+            return (
+              <div key={r.pais + '|' + r.origen} className="card" style={{ marginBottom: 12 }}>
+                <div style={{ padding: '10px 14px', background: 'var(--teal-dark)', color: '#fff', fontWeight: 700, fontSize: 13 }}>
+                  🚢 {r.origen} → {r.pais_nombre || r.pais}
+                  <span style={{ opacity: 0.75, marginLeft: 8, background: 'rgba(255,255,255,.15)', padding: '2px 8px', borderRadius: 4, fontSize: 11.5 }}>{r.region}</span>
+                  <span style={{ opacity: 0.7, marginLeft: 10 }}>Volumen: {r.volumen.toLocaleString('en-US')} TEUs · {r.items.length} oferente{r.items.length > 1 ? 's' : ''}</span>
+                  <span style={{ opacity: 0.85, marginLeft: 10 }}>· Tarifa: ${fmtMoney(tarifaMin)}{tarifaMax !== tarifaMin ? ` – $${fmtMoney(tarifaMax)}` : ''}</span>
+                </div>
+                <div className="table-scroll">
+                  <table className="grid">
+                    <thead><tr>
+                      <th>#</th><th>Oferente</th>
+                      <th className="th-num">Tarifa</th>
+                      <th className="th-num">Costo (vol/{divNum} × tarifa)</th>
+                      <th className="th-num">Gap vs anterior</th>
+                      <th className="th-num">Gap vs #1</th>
+                    </tr></thead>
+                    <tbody>
+                      {r.items.map((d, i) => {
+                        const prev = i > 0 ? r.items[i - 1] : null
+                        const gapPrev = prev ? d.costo - prev.costo : 0
+                        const gapLider = d.costo - mejor.costo
+                        const pctPrev = prev && prev.costo > 0 ? (gapPrev / prev.costo) * 100 : 0
+                        const pctLider = mejor.costo > 0 ? (gapLider / mejor.costo) * 100 : 0
+                        return (
+                          <tr key={i} style={i === 0 ? { background: 'var(--mint)' } : {}}>
+                            <td style={{ fontWeight: 800, color: i < 3 ? 'var(--teal-deep)' : 'var(--muted)' }}>
+                              {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''} {i + 1}
+                            </td>
+                            <td style={{ fontWeight: 600 }}>{d.oferente}</td>
+                            <td className="td-num num">${fmtMoney(d.tarifa)}</td>
+                            <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }}
+                              title={`Fórmula: (volumen ÷ ${divNum}) × tarifa\n= (${d.volumen.toLocaleString('en-US')} ÷ ${divNum}) × $${fmtMoney(d.tarifa)}\n= $${fmtMoney(d.costo)}`}>
+                              ${fmtMoney(d.costo)}
+                            </td>
+                            <td className="td-num num" style={{ color: i === 0 ? 'var(--muted)' : '#c0392b' }}
+                              title={i === 0 ? 'Es el mejor de la ruta' : `Cuesta $${fmtMoney(gapPrev)} más que el #${i} (${prev.oferente})`}>
+                              {i === 0 ? '—' : `+$${fmtMoney(gapPrev)} (${pctPrev.toFixed(1)}%)`}
+                            </td>
+                            <td className="td-num num" style={{ color: i === 0 ? 'var(--muted)' : '#c0392b' }}
+                              title={i === 0 ? 'Es el líder de la ruta (referencia)' : `Cuesta $${fmtMoney(gapLider)} más que el #1 (${mejor.oferente})`}>
+                              {i === 0 ? '—' : `+$${fmtMoney(gapLider)} (${pctLider.toFixed(1)}%)`}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ))}
+      {!rutasPorRegion.length && (
+        <div className="card"><div className="empty">No hay rutas con volumen y tarifa para comparar.</div></div>
+      )}
 
       {/* Puertos con volumen SIN cotización — se muestran para evidenciar, no se comparan */}
       {comp.sinCotizacion && comp.sinCotizacion.length > 0 && (
