@@ -26,6 +26,7 @@ export default function AdminComparativoVolumen() {
   const [campo, setCampo] = useState('tarifa_40_std')
   const [periodo, setPeriodo] = useState('anual') // 'anual' | mes
   const [paisFiltro, setPaisFiltro] = useState('')
+  const [regionFiltro, setRegionFiltro] = useState('') // '' = todas
   // Divisor de la fórmula (persistido en Configuración → Volumen)
   const divNum = Number(getVolumenConfig().divisor) > 0 ? Number(getVolumenConfig().divisor) : 2
 
@@ -140,6 +141,12 @@ export default function AdminComparativoVolumen() {
             {PAISES.map((p) => <option key={p.code} value={p.code}>{p.nombre}</option>)}
           </select>
         </div>
+        <div className="f"><label>Región (rutas)</label>
+          <select value={regionFiltro} onChange={(e) => setRegionFiltro(e.target.value)}>
+            <option value="">Todas</option>
+            {REGIONES.map((reg) => <option key={reg} value={reg}>{REG_LABELS[reg] || reg}</option>)}
+          </select>
+        </div>
         <span className="spacer" />
         <button className="btn btn-sm" disabled={!comp.global.some((o) => o.costo > 0)}
           onClick={() => exportarComparativoVolumen(comp, { etapa, periodo, campo, paisFiltro, divisor: divNum })}>
@@ -251,7 +258,7 @@ export default function AdminComparativoVolumen() {
         Para cada ruta (país destino + puerto de origen) se listan los oferentes ordenados por
         <b> costo = (volumen ÷ {divNum}) × tarifa</b>. El 🥇 es el más barato de esa ruta.
       </div>
-      {rutasPorRegion.map((grupo) => (
+      {rutasPorRegion.filter((grupo) => !regionFiltro || grupo.region === regionFiltro).map((grupo) => (
         <div key={grupo.region} style={{ marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0 8px', padding: '8px 14px', background: 'var(--teal-deep, #0f5f57)', color: '#fff', borderRadius: 6, fontWeight: 800, fontSize: 14 }}>
             <span>🌎 {REG_LABELS[grupo.region] || grupo.region}</span>
@@ -317,8 +324,8 @@ export default function AdminComparativoVolumen() {
           })}
         </div>
       ))}
-      {!rutasPorRegion.length && (
-        <div className="card"><div className="empty">No hay rutas con volumen y tarifa para comparar.</div></div>
+      {!rutasPorRegion.filter((grupo) => !regionFiltro || grupo.region === regionFiltro).length && (
+        <div className="card"><div className="empty">No hay rutas con volumen y tarifa para comparar{regionFiltro ? ` en ${REG_LABELS[regionFiltro] || regionFiltro}` : ''}.</div></div>
       )}
 
       {/* Puertos con volumen SIN cotización — se muestran para evidenciar, no se comparan */}
