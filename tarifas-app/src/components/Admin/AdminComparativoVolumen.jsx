@@ -2,7 +2,7 @@ import { useState, useContext, useMemo } from 'react'
 import { AdminContext } from '../../pages/AdminPage'
 import { calcularRanking } from '../../utils/ranking'
 import { calcularRankingR2 } from '../../utils/rankingR2'
-import { calcularComparativoVolumen, exportarComparativoVolumen } from '../../utils/comparativoVolumen'
+import { calcularComparativoVolumen, exportarComparativoVolumen, exportarComparativoVolumenPDF } from '../../utils/comparativoVolumen'
 import { MESES, totalPais } from '../../utils/volumen'
 import { getVolumenConfig } from '../../utils/rankingConfig'
 import { fmtMoney } from '../../utils/format'
@@ -152,9 +152,13 @@ export default function AdminComparativoVolumen() {
           </select>
         </div>
         <span className="spacer" />
-        <button className="btn btn-sm" disabled={!comp.global.some((o) => o.costo > 0)}
+        <button className="btn btn-ghost btn-sm" disabled={!comp.global.some((o) => o.costo > 0)}
           onClick={() => exportarComparativoVolumen(comp, { etapa, periodo, campo, paisFiltro, divisor: divNum })}>
-          ⬇ Descargar Excel
+          ⬇ Excel
+        </button>
+        <button className="btn btn-sm" disabled={!comp.global.some((o) => o.costo > 0)}
+          onClick={() => exportarComparativoVolumenPDF(comp, { etapa, periodo, campo, paisFiltro, divisor: divNum, regiones: regionesArr })}>
+          📄 PDF (resumen)
         </button>
       </div>
 

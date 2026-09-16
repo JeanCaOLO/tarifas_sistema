@@ -1,4 +1,6 @@
 import * as XLSX from 'xlsx'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 import { indexarVolumen, volumenDe, claveCiudad, MESES, MES_KEYS } from './volumen'
 import { PAISES_MAP } from '../constants'
 import { numOrNull } from './format'
@@ -268,4 +270,123 @@ export function exportarComparativoVolumen(comp, { etapa, periodo, campo, paisFi
 
   const fecha = new Date().toISOString().slice(0, 10)
   XLSX.writeFile(wb, `Comparativo_Volumen_E${etapa}_${periodoTxt}_${fecha}.xlsx`)
+}
+
+/**
+ * Exporta el comparativo como PDF tipo RESUMEN EJECUTIVO.
+ */
+export function exportarComparativoVolumenPDF(comp, { etapa, periodo, campo, paisFiltro, divisor = 2, regiones = [] }) {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
+  const W = doc.internal.pageSize.getWidth()
+  const periodoTxt = periodo === 'anual' ? 'Anual (total)' : (MESES.find((m) => m.key === periodo)?.label || periodo)
+  const campoTxt = campo === 'tarifa_20_std' ? '20" STD' : campo === 'tarifa_40_hc' ? '40" HC' : '40" STD'
+  const teal = [15, 95, 87]
+  const money = (n) => '$' + fmtN(r2(n))
+
+  // --- Encabezado ---
+  doc.setFillColor(teal[0], teal[1], teal[2])
+  doc.rect(0, 0, W, 70, 'F')
+  doc.setTextColor(255, 255, 255)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(17)
+  doc.text('Comparativo Volumen x Precio', 40, 34)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10)
+  doc.text(`Resumen ejecutivo - Etapa ${etapa}`, 40, 52)
+  doc.setFontSize(9)
+  doc.text(new Date().toLocaleDateString('es'), W - 40, 34, { align: 'right' })
+
+  let y = 92
+  doc.setTextColor(60, 60, 60); doc.setFontSize(9)
+  const regionesTxt = (regiones && regiones.length) ? regiones.map((r) => REG_LABELS_X[r] || r).join(', ') : 'Todas'
+  const paisTxt = paisFiltro ? (PAISES_MAP[paisFiltro] || paisFiltro) : 'Todos'
+  doc.text(`Formula: costo = (volumen / ${divisor}) x tarifa   |   menor costo = mejor`, 40, y); y += 14
+  doc.text(`Tarifa base: ${campoTxt}   |   Periodo: ${periodoTxt}   |   Pais: ${paisTxt}   |   Regiones: ${regionesTxt}`, 40, y); y += 18
+
+  // --- Top 5 global por costo ---
+  const conCosto = comp.global.filter((o) => o.costo > 0)
+  const lider = conCosto[0]
+  seccionTitulo(doc, 'Ranking global por costo (Top 10)', y); y += 8
+  autoTable(doc, {
+    startY: y + 4,
+    head: [['#', 'Oferente', 'Pais', 'Volumen', 'Tarifa prom.', 'Costo total', 'Gap vs #1']],
+    body: conCosto.slice(0, 10).map((o, i) => [
+      i + 1, o.oferente, o.pais_nombre || o.pais, fmtN(o.volumen), money(o.avgTarifa), money(o.costo),
+      i === 0 ? '-' : '+' + money(o.costo - lider.costo)
+    ]),
+    styles: { fontSize: 8, cellPadding: 3 },
+    headStyles: { fillColor: teal, textColor: 255, fontStyle: 'bold' },
+    columnStyles: { 0: { halign: 'center' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' } },
+    margin: { left: 40, right: 40 }
+  })
+  y = doc.lastAutoTable.finalY + 20
+
+  // --- Mejor por región ---
+  seccionTitulo(doc, 'Mejor oferente por region de origen', y); y += 8
+  autoTable(doc, {
+    startY: y + 4,
+    head: [['Region', 'Mejor por costo', 'Costo total', 'Mejor por ranking', 'Coinciden']],
+    body: REGIONES_X.filter((reg) => comp.porRegion[reg]).map((reg) => filaGrupoPDF(REG_LABELS_X[reg] || reg, comp.porRegion[reg], money)),
+    styles: { fontSize: 8, cellPadding: 3 },
+    headStyles: { fillColor: teal, textColor: 255, fontStyle: 'bold' },
+    columnStyles: { 2: { halign: 'right' }, 4: { halign: 'center' } },
+    margin: { left: 40, right: 40 }
+  })
+  y = doc.lastAutoTable.finalY + 20
+
+  // --- Mejor por país ---
+  if (y > 680) { doc.addPage(); y = 50 }
+  seccionTitulo(doc, 'Mejor oferente por pais destino', y); y += 8
+  autoTable(doc, {
+    startY: y + 4,
+    head: [['Pais', 'Mejor por costo', 'Costo total', 'Mejor por ranking', 'Coinciden']],
+    body: Object.keys(comp.porPais).map((p) => filaGrupoPDF(PAISES_MAP[p] || p, comp.porPais[p], money)),
+    styles: { fontSize: 8, cellPadding: 3 },
+    headStyles: { fillColor: teal, textColor: 255, fontStyle: 'bold' },
+    columnStyles: { 2: { halign: 'right' }, 4: { halign: 'center' } },
+    margin: { left: 40, right: 40 }
+  })
+  y = doc.lastAutoTable.finalY + 20
+
+  // --- Volumen sin cotización (resumen) ---
+  if (comp.sinCotizacion && comp.sinCotizacion.length) {
+    if (y > 700) { doc.addPage(); y = 50 }
+    const totalSin = comp.sinCotizacion.reduce((a, s) => a + s.volumen, 0)
+    doc.setTextColor(138, 109, 0); doc.setFontSize(9)
+    doc.text(`Volumen sin cotizacion (no comparado): ${comp.sinCotizacion.length} puerto(s), ${fmtN(totalSin)} TEUs`, 40, y)
+    y += 16
+  }
+
+  // Pie de página
+  const pages = doc.internal.getNumberOfPages()
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p)
+    doc.setTextColor(150, 150, 150); doc.setFontSize(8)
+    doc.text(`Tarifas Maritimas - RFP 2026-2027   |   Pagina ${p} de ${pages}`, W / 2, doc.internal.pageSize.getHeight() - 20, { align: 'center' })
+  }
+
+  const fecha = new Date().toISOString().slice(0, 10)
+  doc.save(`Resumen_Volumen_E${etapa}_${periodoTxt}_${fecha}.pdf`)
+}
+
+function seccionTitulo(doc, texto, y) {
+  doc.setTextColor(15, 95, 87); doc.setFont('helvetica', 'bold'); doc.setFontSize(11)
+  doc.text(texto, 40, y)
+  doc.setFont('helvetica', 'normal')
+}
+
+function filaGrupoPDF(etiqueta, grupo, money) {
+  const mc = grupo?.mejorCosto
+  const mp = grupo?.mejorPuntaje
+  const coincide = mc && mp && mc.oferente.trim().toLowerCase() === mp.oferente.trim().toLowerCase()
+  return [
+    etiqueta,
+    mc ? mc.oferente : '-',
+    mc ? money(mc.costo) : '-',
+    mp ? mp.oferente : '-',
+    (!mc || !mp) ? '-' : (coincide ? 'Si' : 'No')
+  ]
+}
+
+// Formato de número con separador de miles (sin depender de locale del PDF)
+function fmtN(n) {
+  return Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })
 }
