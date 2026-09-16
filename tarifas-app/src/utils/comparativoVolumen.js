@@ -206,13 +206,22 @@ export function exportarComparativoVolumen(comp, { etapa, periodo, campo, paisFi
   wsResumen['!cols'] = [{ wch: 22 }, { wch: 30 }, { wch: 16 }, { wch: 16 }, { wch: 30 }, { wch: 12 }, { wch: 12 }]
   XLSX.utils.book_append_sheet(wb, wsResumen, 'Mejores')
 
-  // Hoja: ranking global por costo
-  const gHead = ['#', 'Oferente', 'País', 'Volumen (TEUs)', 'Tarifa prom.', 'Costo total (vol/2×tarifa)', 'Puntaje ranking', 'Rutas', 'Rutas con volumen']
-  const gRows = comp.global.filter((o) => o.costo > 0).map((o, i) => [
-    i + 1, o.oferente, o.pais_nombre || o.pais, o.volumen, r2(o.avgTarifa), r2(o.costo), r2(o.avgPuntaje), o.rutas, o.rutasConVolumen
-  ])
+  // Hoja: ranking global por costo (con gaps)
+  const gHead = ['#', 'Oferente', 'País', 'Volumen (TEUs)', 'Tarifa prom.', `Costo total (vol/${divisor}×tarifa)`, 'Gap vs anterior', 'Gap vs #1', 'Puntaje ranking', 'Rutas', 'Rutas con volumen']
+  const conCosto = comp.global.filter((o) => o.costo > 0)
+  const lider = conCosto[0]
+  const gRows = conCosto.map((o, i) => {
+    const prev = i > 0 ? conCosto[i - 1] : null
+    const gapPrev = prev ? r2(o.costo - prev.costo) : 0
+    const gapLider = lider ? r2(o.costo - lider.costo) : 0
+    return [
+      i + 1, o.oferente, o.pais_nombre || o.pais, o.volumen, r2(o.avgTarifa), r2(o.costo),
+      i === 0 ? 0 : gapPrev, i === 0 ? 0 : gapLider,
+      r2(o.avgPuntaje), o.rutas, o.rutasConVolumen
+    ]
+  })
   const wsGlobal = XLSX.utils.aoa_to_sheet([gHead, ...gRows])
-  wsGlobal['!cols'] = [{ wch: 5 }, { wch: 28 }, { wch: 14 }, { wch: 15 }, { wch: 14 }, { wch: 24 }, { wch: 15 }, { wch: 8 }, { wch: 16 }]
+  wsGlobal['!cols'] = [{ wch: 5 }, { wch: 28 }, { wch: 14 }, { wch: 15 }, { wch: 14 }, { wch: 24 }, { wch: 16 }, { wch: 16 }, { wch: 15 }, { wch: 8 }, { wch: 16 }]
   XLSX.utils.book_append_sheet(wb, wsGlobal, 'Ranking por Costo')
 
   // Hoja: puertos con volumen SIN cotización (no se comparan)

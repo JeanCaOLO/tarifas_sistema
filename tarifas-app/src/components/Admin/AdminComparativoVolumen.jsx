@@ -164,10 +164,19 @@ export default function AdminComparativoVolumen() {
               <th className="th-num">Volumen (TEUs)</th>
               <th className="th-num">Tarifa prom.</th>
               <th className="th-num">Costo total (vol/{divNum} × tarifa)</th>
+              <th className="th-num">Gap vs anterior</th>
+              <th className="th-num">Gap vs #1</th>
               <th className="th-num">Puntaje ranking</th>
             </tr></thead>
             <tbody>
-              {comp.global.filter((o) => o.costo > 0).map((o, i) => (
+              {comp.global.filter((o) => o.costo > 0).map((o, i, arr) => {
+                const lider = arr[0]
+                const prev = i > 0 ? arr[i - 1] : null
+                const gapPrev = prev ? o.costo - prev.costo : 0
+                const gapLider = lider ? o.costo - lider.costo : 0
+                const pctPrev = prev && prev.costo > 0 ? (gapPrev / prev.costo) * 100 : 0
+                const pctLider = lider && lider.costo > 0 ? (gapLider / lider.costo) * 100 : 0
+                return (
                 <tr key={i} style={i === 0 ? { background: 'var(--mint)' } : {}}>
                   <td style={{ fontWeight: 800, color: i < 3 ? 'var(--teal-deep)' : 'var(--muted)' }}>
                     {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''} {i + 1}
@@ -177,9 +186,18 @@ export default function AdminComparativoVolumen() {
                   <td className="td-num num" title={`Volumen total del oferente en sus rutas con cotización: ${o.volumen.toLocaleString('en-US')} TEUs (${o.rutasConVolumen} de ${o.rutas} ruta(s) con volumen)`}>{o.volumen.toLocaleString('en-US')}</td>
                   <td className="td-num num" title={`Tarifa promedio del oferente sobre ${o.rutas} ruta(s)`}>${fmtMoney(o.avgTarifa)}</td>
                   <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={tipCosto(o, divNum)}>${fmtMoney(o.costo)}</td>
+                  <td className="td-num num" style={{ color: i === 0 ? 'var(--muted)' : '#c0392b' }}
+                    title={i === 0 ? 'Es el mejor: no tiene puesto anterior' : `Cuesta $${fmtMoney(gapPrev)} más que el puesto #${i} (${o.oferente} vs ${prev.oferente})`}>
+                    {i === 0 ? '—' : `+$${fmtMoney(gapPrev)} (${pctPrev.toFixed(1)}%)`}
+                  </td>
+                  <td className="td-num num" style={{ color: i === 0 ? 'var(--muted)' : '#c0392b' }}
+                    title={i === 0 ? 'Es el líder (referencia)' : `Cuesta $${fmtMoney(gapLider)} más que el #1 (${lider.oferente})`}>
+                    {i === 0 ? '—' : `+$${fmtMoney(gapLider)} (${pctLider.toFixed(1)}%)`}
+                  </td>
                   <td className="td-num num" title="Puntaje promedio del oferente en el ranking actual (por reglas de puntaje)">{o.avgPuntaje.toFixed(2)}</td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
