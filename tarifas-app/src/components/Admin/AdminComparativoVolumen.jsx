@@ -7,7 +7,7 @@ import { MESES, totalPais } from '../../utils/volumen'
 import { getVolumenConfig } from '../../utils/rankingConfig'
 import { fmtMoney } from '../../utils/format'
 import { PAISES, PAISES_MAP } from '../../constants'
-import { aplicarExclusion } from './ExcluirOferentes'
+import ExcluirOferentes, { aplicarExclusion } from './ExcluirOferentes'
 
 const REG_LABELS = { America: 'América', Europa: 'Europa', 'Asia Puertos Base': 'Asia PB', Asia: 'Asia' }
 const REGIONES = ['America', 'Europa', 'Asia Puertos Base', 'Asia']
@@ -78,6 +78,8 @@ export default function AdminComparativoVolumen() {
           ⚠ Aún no hay volumen cargado. Ve a <b>Configuración → Volumen</b> para capturarlo o importarlo.
         </div>
       )}
+
+      <ExcluirOferentes respuestas={etapa === '2' ? respuestasR2 : respuestas} />
 
       <div className="filters" style={{ gap: 10, flexWrap: 'wrap' }}>
         <div className="f"><label>Tarifa base</label>
