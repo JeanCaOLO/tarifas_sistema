@@ -1,4 +1,4 @@
-import { useState, useContext, useMemo } from 'react'
+import { useState, useContext, useMemo, useEffect } from 'react'
 import { AdminContext } from '../../pages/AdminPage'
 import { supabase } from '../../supabase'
 import { PAISES } from '../../constants'
@@ -7,6 +7,7 @@ import {
   leerExcelVolumen, descargarPlantillaVolumen, normPuerto
 } from '../../utils/volumen'
 import { numOrNull } from '../../utils/format'
+import { loadConfig, saveConfig, getVolumenConfig } from '../../utils/rankingConfig'
 
 /**
  * Módulo para cargar/editar NUESTRO volumen (TEUs) por puerto de origen,
@@ -20,12 +21,19 @@ export default function AdminVolumen() {
   const [guardando, setGuardando] = useState(false)
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
+  const [divisor, setDivisor] = useState(() => getVolumenConfig().divisor ?? 2)
+  const [divGuardado, setDivGuardado] = useState(false)
 
   const paisNombre = PAISES.find((p) => p.code === pais)?.nombre || pais
 
+  // Reconstruir las filas cuando llegan/cambian los datos de volumen o el país.
+  // Así se muestran los valores actuales guardados en la base de datos.
+  useEffect(() => {
+    setFilas(filasEditables(volumenes, pais))
+  }, [volumenes, pais])
+
   function cambiarPais(nuevo) {
     setPais(nuevo)
-    setFilas(filasEditables(volumenes, nuevo))
     setMsg(''); setError('')
   }
 
@@ -98,13 +106,47 @@ export default function AdminVolumen() {
     }
   }
 
+  async function guardarDivisor() {
+    const cfg = JSON.parse(JSON.stringify(loadConfig()))
+    if (!cfg.VOLUMEN) cfg.VOLUMEN = {}
+    cfg.VOLUMEN.divisor = Number(divisor) > 0 ? Number(divisor) : 2
+    const res = await saveConfig(cfg)
+    if (res.ok) {
+      setDivGuardado(true)
+      setTimeout(() => setDivGuardado(false), 2500)
+    } else {
+      setError(res.error || 'No se pudo guardar el divisor.')
+    }
+  }
+
   return (
     <section>
       <div className="section-title">Nuestro Volumen por Puerto de Origen</div>
       <div className="card" style={{ padding: '12px 16px', marginBottom: 14, fontSize: 12.5, lineHeight: 1.6 }}>
         Captura los <b>TEUs que movemos</b> por puerto de origen y mes, para cada país destino.
         Este volumen se usa en el <b>Comparativo Volumen × Precio</b> con la fórmula
-        <b> costo = (volumen ÷ 2) × tarifa</b> (menor costo = mejor oferente).
+        <b> costo = (volumen ÷ divisor) × tarifa</b> (menor costo = mejor oferente).
+      </div>
+
+      {/* Divisor de la fórmula (persistente) */}
+      <div className="card" style={{ padding: '12px 16px', marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 700, fontSize: 13 }}>Fórmula del comparativo:</span>
+          <span style={{ fontFamily: 'monospace', background: 'var(--mint, #eef7f4)', padding: '4px 10px', borderRadius: 6 }}>
+            costo = (volumen ÷ {Number(divisor) > 0 ? Number(divisor) : 2}) × tarifa
+          </span>
+          <span className="spacer" />
+          <label style={{ fontSize: 12.5 }}>Divisor (TEU → contenedor):&nbsp;
+            <input type="number" min="0.1" step="0.5" value={divisor}
+              onChange={(e) => { setDivisor(e.target.value); setDivGuardado(false) }}
+              style={{ width: 80, padding: '5px 8px', border: '1px solid #d0d7de', borderRadius: 6, textAlign: 'right' }} />
+          </label>
+          {divGuardado && <span style={{ color: 'var(--teal-deep)', fontWeight: 700, fontSize: 12.5 }}>✓ Guardado</span>}
+          <button className="btn btn-sm" onClick={guardarDivisor}>Guardar divisor</button>
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 6 }}>
+          Por defecto 2 (1 contenedor de 40' = 2 TEUs). Se guarda en la configuración compartida.
+        </div>
       </div>
 
       <div className="filters" style={{ gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>

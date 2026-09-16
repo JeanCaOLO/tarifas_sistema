@@ -4,6 +4,7 @@ import { calcularRanking } from '../../utils/ranking'
 import { calcularRankingR2 } from '../../utils/rankingR2'
 import { calcularComparativoVolumen, exportarComparativoVolumen } from '../../utils/comparativoVolumen'
 import { MESES, totalPais } from '../../utils/volumen'
+import { getVolumenConfig } from '../../utils/rankingConfig'
 import { fmtMoney } from '../../utils/format'
 import { PAISES, PAISES_MAP } from '../../constants'
 import { aplicarExclusion } from './ExcluirOferentes'
@@ -25,6 +26,8 @@ export default function AdminComparativoVolumen() {
   const [campo, setCampo] = useState('tarifa_40_std')
   const [periodo, setPeriodo] = useState('anual') // 'anual' | mes
   const [paisFiltro, setPaisFiltro] = useState('')
+  // Divisor de la fórmula (persistido en Configuración → Volumen)
+  const divNum = Number(getVolumenConfig().divisor) > 0 ? Number(getVolumenConfig().divisor) : 2
 
   // porRuta según la etapa activa
   const porRuta = useMemo(() => {
@@ -50,8 +53,8 @@ export default function AdminComparativoVolumen() {
   }, [etapa, respuestas, tarifas, respuestasR2, tarifasR2, condOpR2, oferentesExcluidos, campo])
 
   const comp = useMemo(
-    () => calcularComparativoVolumen(porRuta, volumenes, periodo, { paisFiltro }),
-    [porRuta, volumenes, periodo, paisFiltro]
+    () => calcularComparativoVolumen(porRuta, volumenes, periodo, { paisFiltro, divisor: divNum }),
+    [porRuta, volumenes, periodo, paisFiltro, divNum]
   )
 
   const hayVolumen = (volumenes || []).length > 0
@@ -60,9 +63,14 @@ export default function AdminComparativoVolumen() {
     <section>
       <div className="section-title">Comparativo Volumen × Precio — Etapa {etapa}</div>
       <div className="card" style={{ padding: '12px 16px', marginBottom: 14, fontSize: 12.5, lineHeight: 1.6 }}>
-        Mejor oferente según el <b>costo total</b> que nos representa:
-        <b> costo = (volumen ÷ 2) × tarifa</b>, usando nuestro volumen por puerto de origen.
-        <b> Menor costo = mejor.</b> Se compara con el mejor oferente del ranking actual (por puntaje).
+        Mejor oferente según el <b>costo total</b> que nos representa. Fórmula usada:
+        <div style={{ margin: '6px 0', padding: '8px 12px', background: 'var(--mint, #eef7f4)', borderRadius: 6, fontFamily: 'monospace', fontSize: 13 }}>
+          costo = (volumen ÷ {divNum}) × tarifa
+        </div>
+        Donde <b>volumen</b> = TEUs que movemos por ese puerto (según país destino y periodo),
+        <b> tarifa</b> = tarifa base seleccionada del oferente, y <b>÷ {divNum}</b> convierte TEUs a
+        contenedores. <b>Menor costo = mejor.</b> Se compara con el mejor oferente del ranking actual (por puntaje).
+        El divisor se ajusta en <b>Configuración → Volumen</b>.
       </div>
 
       {!hayVolumen && (
@@ -93,7 +101,7 @@ export default function AdminComparativoVolumen() {
         </div>
         <span className="spacer" />
         <button className="btn btn-sm" disabled={!comp.global.some((o) => o.costo > 0)}
-          onClick={() => exportarComparativoVolumen(comp, { etapa, periodo, campo, paisFiltro })}>
+          onClick={() => exportarComparativoVolumen(comp, { etapa, periodo, campo, paisFiltro, divisor: divNum })}>
           ⬇ Descargar Excel
         </button>
       </div>

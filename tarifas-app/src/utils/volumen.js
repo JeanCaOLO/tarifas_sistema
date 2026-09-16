@@ -140,8 +140,13 @@ export function totalPais(filas, pais, periodo = 'anual') {
  */
 export function filasEditables(filasGuardadas, pais) {
   const guardadasIdx = indexarVolumen((filasGuardadas || []).filter((f) => f.pais === pais))
-  return ORIGENES.map(([puerto, region]) => {
+  const usados = new Set()
+  const filas = ORIGENES.map(([puerto, region]) => {
+    // Match por nombre exacto o por ciudad (los datos guardados pueden traer
+    // nombres crudos como "NINGBO" que igual coinciden por ciudad).
     const existente = guardadasIdx.get(pais + '|' + normPuerto(puerto))
+      || guardadasIdx.get(pais + '|c|' + claveCiudad(puerto))
+    if (existente) usados.add(existente)
     const base = { puerto_origen: puerto, region }
     for (const k of MES_KEYS) base[k] = existente ? (numOrNull(existente[k]) || 0) : 0
     base.total_general = existente
@@ -149,6 +154,15 @@ export function filasEditables(filasGuardadas, pais) {
       : 0
     return base
   })
+  // Puertos guardados que no están en el catálogo de orígenes: agregarlos al final
+  for (const f of (filasGuardadas || []).filter((f) => f.pais === pais)) {
+    if (usados.has(f)) continue
+    const base = { puerto_origen: f.puerto_origen, region: f.region || '' }
+    for (const k of MES_KEYS) base[k] = numOrNull(f[k]) || 0
+    base.total_general = numOrNull(f.total_general) || MES_KEYS.reduce((a, k) => a + base[k], 0)
+    filas.push(base)
+  }
+  return filas
 }
 
 /**

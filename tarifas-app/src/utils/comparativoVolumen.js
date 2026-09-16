@@ -31,13 +31,16 @@ const oferKey = (nombre) => (nombre || '').trim().toLowerCase()
 export function calcularComparativoVolumen(porRuta, volumenes, periodo = 'anual', opts = {}) {
   const idx = indexarVolumen(volumenes || [])
   const paisFiltro = opts.paisFiltro || ''
+  // Divisor de la fórmula costo = (volumen / divisor) × tarifa. Por defecto 2
+  // (1 contenedor de 40' = 2 TEUs). Configurable desde la vista.
+  const divisor = Number(opts.divisor) > 0 ? Number(opts.divisor) : 2
 
   // Detalle por evaluación con costo
   const detalle = []
   for (const r of porRuta) {
     if (paisFiltro && r.pais !== paisFiltro) continue
     const vol = volumenDe(idx, r.pais, r.origen, periodo)
-    const costo = (vol / 2) * Number(r.tarifa || 0)
+    const costo = (vol / divisor) * Number(r.tarifa || 0)
     detalle.push({
       oferente: r.oferente,
       pais: r.pais,
@@ -165,7 +168,7 @@ const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100
  * Exporta el comparativo a Excel: hoja de mejores por región y país (costo vs
  * ranking), y hoja del ranking global por costo.
  */
-export function exportarComparativoVolumen(comp, { etapa, periodo, campo, paisFiltro }) {
+export function exportarComparativoVolumen(comp, { etapa, periodo, campo, paisFiltro, divisor = 2 }) {
   const wb = XLSX.utils.book_new()
   const periodoTxt = periodo === 'anual' ? 'Anual' : (MESES.find((m) => m.key === periodo)?.label || periodo)
 
@@ -188,6 +191,7 @@ export function exportarComparativoVolumen(comp, { etapa, periodo, campo, paisFi
 
   const aoa = [
     [`COMPARATIVO VOLUMEN × PRECIO — ETAPA ${etapa}`],
+    [`Fórmula: costo = (volumen / ${divisor}) × tarifa  ·  menor costo = mejor`],
     [`Periodo: ${periodoTxt}`, `Tarifa base: ${campo}`, paisFiltro ? `País: ${PAISES_MAP[paisFiltro] || paisFiltro}` : 'País: Todos'],
     [],
     ['MEJOR OFERENTE POR REGIÓN DE ORIGEN'],

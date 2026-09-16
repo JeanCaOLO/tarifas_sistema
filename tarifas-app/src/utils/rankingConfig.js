@@ -88,12 +88,19 @@ export const DEFAULT_E2_REG = {
   }
 }
 
+// Configuración del Comparativo Volumen × Precio.
+// costo = (volumen / divisor) × tarifa. divisor = 2 (1 cont. 40' = 2 TEUs).
+export const DEFAULT_VOLUMEN = {
+  divisor: 2
+}
+
 export function getDefaults() {
   return {
     E1: clone(DEFAULT_E1),
     E2: clone(DEFAULT_E2),
     E1_REG: clone(DEFAULT_E1_REG),
-    E2_REG: clone(DEFAULT_E2_REG)
+    E2_REG: clone(DEFAULT_E2_REG),
+    VOLUMEN: clone(DEFAULT_VOLUMEN)
   }
 }
 
@@ -217,6 +224,7 @@ export function getPesosE2() { return loadConfig().E2.pesos }
 export function getReglasE2() { return loadConfig().E2.reglas }
 export function getRegionalE1() { return loadConfig().E1_REG }
 export function getRegionalE2() { return loadConfig().E2_REG }
+export function getVolumenConfig() { return loadConfig().VOLUMEN || { divisor: 2 } }
 
 /**
  * Suma de pesos de un objeto {rubro: peso} (para validar =100 en la UI).
