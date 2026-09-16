@@ -122,7 +122,7 @@ export default function AdminComparativoVolumen() {
             <tbody>
               {REGIONES.map((reg) => {
                 const g = comp.porRegion[reg]
-                return <FilaComparativo key={reg} etiqueta={REG_LABELS[reg] || reg} grupo={g} />
+                return <FilaComparativo key={reg} etiqueta={REG_LABELS[reg] || reg} grupo={g} divisor={divNum} />
               })}
             </tbody>
           </table>
@@ -145,7 +145,7 @@ export default function AdminComparativoVolumen() {
             <tbody>
               {PAISES.filter((p) => !paisFiltro || p.code === paisFiltro).map((p) => {
                 const g = comp.porPais[p.code]
-                return <FilaComparativo key={p.code} etiqueta={p.nombre} grupo={g} />
+                return <FilaComparativo key={p.code} etiqueta={p.nombre} grupo={g} divisor={divNum} />
               })}
             </tbody>
           </table>
@@ -161,7 +161,7 @@ export default function AdminComparativoVolumen() {
               <th>#</th><th>Oferente</th><th>País</th>
               <th className="th-num">Volumen (TEUs)</th>
               <th className="th-num">Tarifa prom.</th>
-              <th className="th-num">Costo total (vol/2 × tarifa)</th>
+              <th className="th-num">Costo total (vol/{divNum} × tarifa)</th>
               <th className="th-num">Puntaje ranking</th>
             </tr></thead>
             <tbody>
@@ -172,10 +172,10 @@ export default function AdminComparativoVolumen() {
                   </td>
                   <td style={{ fontWeight: 600 }}>{o.oferente}</td>
                   <td><span className="badge">{o.pais_nombre || o.pais}</span></td>
-                  <td className="td-num num">{o.volumen.toLocaleString('en-US')}</td>
-                  <td className="td-num num">${fmtMoney(o.avgTarifa)}</td>
-                  <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }}>${fmtMoney(o.costo)}</td>
-                  <td className="td-num num">{o.avgPuntaje.toFixed(2)}</td>
+                  <td className="td-num num" title={`Volumen total del oferente en sus rutas con cotización: ${o.volumen.toLocaleString('en-US')} TEUs (${o.rutasConVolumen} de ${o.rutas} ruta(s) con volumen)`}>{o.volumen.toLocaleString('en-US')}</td>
+                  <td className="td-num num" title={`Tarifa promedio del oferente sobre ${o.rutas} ruta(s)`}>${fmtMoney(o.avgTarifa)}</td>
+                  <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={tipCosto(o, divNum)}>${fmtMoney(o.costo)}</td>
+                  <td className="td-num num" title="Puntaje promedio del oferente en el ranking actual (por reglas de puntaje)">{o.avgPuntaje.toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>
@@ -224,7 +224,7 @@ export default function AdminComparativoVolumen() {
   )
 }
 
-function FilaComparativo({ etiqueta, grupo }) {
+function FilaComparativo({ etiqueta, grupo, divisor }) {
   const mc = grupo?.mejorCosto
   const mp = grupo?.mejorPuntaje
   const coincide = mc && mp && mc.oferente.trim().toLowerCase() === mp.oferente.trim().toLowerCase()
@@ -232,7 +232,7 @@ function FilaComparativo({ etiqueta, grupo }) {
     <tr>
       <td style={{ fontWeight: 700 }}>{etiqueta}</td>
       <td style={{ fontWeight: 600 }}>{mc ? mc.oferente : '—'}</td>
-      <td className="td-num num" style={{ fontWeight: 700, color: 'var(--teal-deep)' }}>{mc ? `$${fmtMoney(mc.costo)}` : '—'}</td>
+      <td className="td-num num" style={{ fontWeight: 700, color: 'var(--teal-deep)' }} title={mc ? tipCosto(mc, divisor) : ''}>{mc ? `$${fmtMoney(mc.costo)}` : '—'}</td>
       <td className="td-num num">{mc ? mc.volumen.toLocaleString('en-US') : '—'}</td>
       <td>{mp ? mp.oferente : '—'}</td>
       <td className="td-num">
@@ -242,4 +242,18 @@ function FilaComparativo({ etiqueta, grupo }) {
       </td>
     </tr>
   )
+}
+
+// Tooltip con la fórmula y los valores usados para calcular el costo
+function tipCosto(o, divisor) {
+  const div = Number(divisor) > 0 ? Number(divisor) : 2
+  const vol = o.volumen || 0
+  const tar = o.avgTarifa || 0
+  return `COSTO TOTAL (menor = mejor)\n` +
+    `Fórmula: (volumen ÷ ${div}) × tarifa\n` +
+    `Volumen del oferente: ${vol.toLocaleString('en-US')} TEUs\n` +
+    `Tarifa promedio: $${fmtMoney(tar)}\n` +
+    `= (${vol.toLocaleString('en-US')} ÷ ${div}) × $${fmtMoney(tar)}\n` +
+    `≈ $${fmtMoney(o.costo)}\n` +
+    `(Suma de (volumen_ruta ÷ ${div}) × tarifa_ruta en ${o.rutasConVolumen} ruta(s) con volumen)`
 }
