@@ -26,7 +26,16 @@ export default function AdminComparativoVolumen() {
   const [campo, setCampo] = useState('tarifa_40_std')
   const [periodo, setPeriodo] = useState('anual') // 'anual' | mes
   const [paisFiltro, setPaisFiltro] = useState('')
-  const [regionFiltro, setRegionFiltro] = useState('') // '' = todas
+  // Regiones incluidas en TODO el comparativo. Vacío = todas incluidas.
+  const [regionesIncluidas, setRegionesIncluidas] = useState(() => new Set(REGIONES))
+
+  function toggleRegion(reg) {
+    setRegionesIncluidas((prev) => {
+      const next = new Set(prev)
+      if (next.has(reg)) next.delete(reg); else next.add(reg)
+      return next
+    })
+  }
   // Divisor de la fórmula (persistido en Configuración → Volumen)
   const divNum = Number(getVolumenConfig().divisor) > 0 ? Number(getVolumenConfig().divisor) : 2
 
@@ -53,9 +62,10 @@ export default function AdminComparativoVolumen() {
     return calcularRanking(tf, rf, { pais: '', campo, regionFiltro: '', formRegion: '' }).porRuta
   }, [etapa, respuestas, tarifas, respuestasR2, tarifasR2, condOpR2, oferentesExcluidos, campo])
 
+  const regionesArr = useMemo(() => [...regionesIncluidas], [regionesIncluidas])
   const comp = useMemo(
-    () => calcularComparativoVolumen(porRuta, volumenes, periodo, { paisFiltro, divisor: divNum }),
-    [porRuta, volumenes, periodo, paisFiltro, divNum]
+    () => calcularComparativoVolumen(porRuta, volumenes, periodo, { paisFiltro, divisor: divNum, regiones: regionesArr }),
+    [porRuta, volumenes, periodo, paisFiltro, divNum, regionesArr]
   )
 
   // Comparativo por ruta (país destino + puerto de origen): oferentes ordenados
@@ -141,17 +151,33 @@ export default function AdminComparativoVolumen() {
             {PAISES.map((p) => <option key={p.code} value={p.code}>{p.nombre}</option>)}
           </select>
         </div>
-        <div className="f"><label>Región (rutas)</label>
-          <select value={regionFiltro} onChange={(e) => setRegionFiltro(e.target.value)}>
-            <option value="">Todas</option>
-            {REGIONES.map((reg) => <option key={reg} value={reg}>{REG_LABELS[reg] || reg}</option>)}
-          </select>
-        </div>
         <span className="spacer" />
         <button className="btn btn-sm" disabled={!comp.global.some((o) => o.costo > 0)}
           onClick={() => exportarComparativoVolumen(comp, { etapa, periodo, campo, paisFiltro, divisor: divNum })}>
           ⬇ Descargar Excel
         </button>
+      </div>
+
+      {/* Filtro de regiones — incluir/excluir del comparativo completo */}
+      <div className="card" style={{ padding: '10px 14px', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 700, fontSize: 12.5 }}>Regiones a incluir:</span>
+          {REGIONES.map((reg) => (
+            <label key={reg} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}>
+              <input type="checkbox" checked={regionesIncluidas.has(reg)} onChange={() => toggleRegion(reg)} />
+              <span style={{ textDecoration: regionesIncluidas.has(reg) ? 'none' : 'line-through', color: regionesIncluidas.has(reg) ? 'inherit' : 'var(--muted)' }}>
+                {REG_LABELS[reg] || reg}
+              </span>
+            </label>
+          ))}
+          <span className="spacer" style={{ flex: 1 }} />
+          <button className="btn btn-ghost btn-sm" onClick={() => setRegionesIncluidas(new Set(REGIONES))}>Todas</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setRegionesIncluidas(new Set(['Asia Puertos Base']))}>Solo Puertos Base</button>
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 6 }}>
+          Este filtro afecta <b>todo</b> el comparativo: ranking global por costo, mejor por región/país y comparativo por ruta.
+          Útil para ver, por ejemplo, quién es más competitivo considerando solo puertos base.
+        </div>
       </div>
 
       {/* Mejor por REGIÓN */}
@@ -168,7 +194,7 @@ export default function AdminComparativoVolumen() {
               <th className="th-num">¿Coinciden?</th>
             </tr></thead>
             <tbody>
-              {REGIONES.map((reg) => {
+              {REGIONES.filter((reg) => regionesIncluidas.has(reg)).map((reg) => {
                 const g = comp.porRegion[reg]
                 return <FilaComparativo key={reg} etiqueta={REG_LABELS[reg] || reg} grupo={g} divisor={divNum} />
               })}
@@ -258,74 +284,70 @@ export default function AdminComparativoVolumen() {
         Para cada ruta (país destino + puerto de origen) se listan los oferentes ordenados por
         <b> costo = (volumen ÷ {divNum}) × tarifa</b>. El 🥇 es el más barato de esa ruta.
       </div>
-      {rutasPorRegion.filter((grupo) => !regionFiltro || grupo.region === regionFiltro).map((grupo) => (
-        <div key={grupo.region} style={{ marginBottom: 18 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0 8px', padding: '8px 14px', background: 'var(--teal-deep, #0f5f57)', color: '#fff', borderRadius: 6, fontWeight: 800, fontSize: 14 }}>
+      {rutasPorRegion.map((grupo) => (
+        <div key={grupo.region} className="card" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--teal-deep, #0f5f57)', color: '#fff', fontWeight: 800, fontSize: 14 }}>
             <span>🌎 {REG_LABELS[grupo.region] || grupo.region}</span>
             <span style={{ opacity: 0.85, fontWeight: 600, fontSize: 12.5 }}>{grupo.nRutas} ruta{grupo.nRutas !== 1 ? 's' : ''}</span>
-            <span className="spacer" style={{ flex: 1 }} />
+            <span style={{ flex: 1 }} />
             <span style={{ fontWeight: 700, fontSize: 12.5 }}>Tarifa promedio región: ${fmtMoney(grupo.tarifaProm)}</span>
           </div>
-          {grupo.rutas.map((r) => {
-            const mejor = r.items[0]
-            const tarifaMin = Math.min(...r.items.map((d) => d.tarifa))
-            const tarifaMax = Math.max(...r.items.map((d) => d.tarifa))
-            return (
-              <div key={r.pais + '|' + r.origen} className="card" style={{ marginBottom: 12 }}>
-                <div style={{ padding: '10px 14px', background: 'var(--teal-dark)', color: '#fff', fontWeight: 700, fontSize: 13 }}>
-                  🚢 {r.origen} → {r.pais_nombre || r.pais}
-                  <span style={{ opacity: 0.75, marginLeft: 8, background: 'rgba(255,255,255,.15)', padding: '2px 8px', borderRadius: 4, fontSize: 11.5 }}>{r.region}</span>
-                  <span style={{ opacity: 0.7, marginLeft: 10 }}>Volumen: {r.volumen.toLocaleString('en-US')} TEUs · {r.items.length} oferente{r.items.length > 1 ? 's' : ''}</span>
-                  <span style={{ opacity: 0.85, marginLeft: 10 }}>· Tarifa: ${fmtMoney(tarifaMin)}{tarifaMax !== tarifaMin ? ` – $${fmtMoney(tarifaMax)}` : ''}</span>
-                </div>
-                <div className="table-scroll">
-                  <table className="grid">
-                    <thead><tr>
-                      <th>#</th><th>Oferente</th>
-                      <th className="th-num">Tarifa</th>
-                      <th className="th-num">Costo (vol/{divNum} × tarifa)</th>
-                      <th className="th-num">Gap vs anterior</th>
-                      <th className="th-num">Gap vs #1</th>
-                    </tr></thead>
-                    <tbody>
-                      {r.items.map((d, i) => {
-                        const prev = i > 0 ? r.items[i - 1] : null
-                        const gapPrev = prev ? d.costo - prev.costo : 0
-                        const gapLider = d.costo - mejor.costo
-                        const pctPrev = prev && prev.costo > 0 ? (gapPrev / prev.costo) * 100 : 0
-                        const pctLider = mejor.costo > 0 ? (gapLider / mejor.costo) * 100 : 0
-                        return (
-                          <tr key={i} style={i === 0 ? { background: 'var(--mint)' } : {}}>
-                            <td style={{ fontWeight: 800, color: i < 3 ? 'var(--teal-deep)' : 'var(--muted)' }}>
-                              {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''} {i + 1}
-                            </td>
-                            <td style={{ fontWeight: 600 }}>{d.oferente}</td>
-                            <td className="td-num num">${fmtMoney(d.tarifa)}</td>
-                            <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }}
-                              title={`Fórmula: (volumen ÷ ${divNum}) × tarifa\n= (${d.volumen.toLocaleString('en-US')} ÷ ${divNum}) × $${fmtMoney(d.tarifa)}\n= $${fmtMoney(d.costo)}`}>
-                              ${fmtMoney(d.costo)}
-                            </td>
-                            <td className="td-num num" style={{ color: i === 0 ? 'var(--muted)' : '#c0392b' }}
-                              title={i === 0 ? 'Es el mejor de la ruta' : `Cuesta $${fmtMoney(gapPrev)} más que el #${i} (${prev.oferente})`}>
-                              {i === 0 ? '—' : `+$${fmtMoney(gapPrev)} (${pctPrev.toFixed(1)}%)`}
-                            </td>
-                            <td className="td-num num" style={{ color: i === 0 ? 'var(--muted)' : '#c0392b' }}
-                              title={i === 0 ? 'Es el líder de la ruta (referencia)' : `Cuesta $${fmtMoney(gapLider)} más que el #1 (${mejor.oferente})`}>
-                              {i === 0 ? '—' : `+$${fmtMoney(gapLider)} (${pctLider.toFixed(1)}%)`}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )
-          })}
+          <div className="table-scroll">
+            <table className="grid">
+              <thead><tr>
+                <th>Ruta</th><th>#</th><th>Oferente</th>
+                <th className="th-num">Tarifa</th>
+                <th className="th-num">Costo (vol/{divNum} × tarifa)</th>
+                <th className="th-num">Gap vs anterior</th>
+                <th className="th-num">Gap vs #1</th>
+              </tr></thead>
+              <tbody>
+                {grupo.rutas.map((r) => {
+                  const mejor = r.items[0]
+                  return r.items.map((d, i) => {
+                    const prev = i > 0 ? r.items[i - 1] : null
+                    const gapPrev = prev ? d.costo - prev.costo : 0
+                    const gapLider = d.costo - mejor.costo
+                    const pctPrev = prev && prev.costo > 0 ? (gapPrev / prev.costo) * 100 : 0
+                    const pctLider = mejor.costo > 0 ? (gapLider / mejor.costo) * 100 : 0
+                    return (
+                      <tr key={r.pais + '|' + r.origen + '|' + i}
+                        style={{ background: i === 0 ? 'var(--mint)' : undefined, borderTop: i === 0 ? '2px solid var(--teal-dark)' : undefined }}>
+                        <td style={{ fontWeight: 600, fontSize: 11.5, color: 'var(--teal-deep)' }}>
+                          {i === 0 ? (
+                            <span title={`Volumen: ${r.volumen.toLocaleString('en-US')} TEUs`}>
+                              {r.origen} → {r.pais_nombre || r.pais}
+                            </span>
+                          ) : ''}
+                        </td>
+                        <td style={{ fontWeight: 800, color: i < 3 ? 'var(--teal-deep)' : 'var(--muted)' }}>
+                          {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''} {i + 1}
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{d.oferente}</td>
+                        <td className="td-num num">${fmtMoney(d.tarifa)}</td>
+                        <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }}
+                          title={`Fórmula: (volumen ÷ ${divNum}) × tarifa\n= (${d.volumen.toLocaleString('en-US')} ÷ ${divNum}) × $${fmtMoney(d.tarifa)}\n= $${fmtMoney(d.costo)}`}>
+                          ${fmtMoney(d.costo)}
+                        </td>
+                        <td className="td-num num" style={{ color: i === 0 ? 'var(--muted)' : '#c0392b' }}
+                          title={i === 0 ? 'Es el mejor de la ruta' : `Cuesta $${fmtMoney(gapPrev)} más que el #${i} (${prev.oferente})`}>
+                          {i === 0 ? '—' : `+$${fmtMoney(gapPrev)} (${pctPrev.toFixed(1)}%)`}
+                        </td>
+                        <td className="td-num num" style={{ color: i === 0 ? 'var(--muted)' : '#c0392b' }}
+                          title={i === 0 ? 'Es el líder de la ruta (referencia)' : `Cuesta $${fmtMoney(gapLider)} más que el #1 (${mejor.oferente})`}>
+                          {i === 0 ? '—' : `+$${fmtMoney(gapLider)} (${pctLider.toFixed(1)}%)`}
+                        </td>
+                      </tr>
+                    )
+                  })
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       ))}
-      {!rutasPorRegion.filter((grupo) => !regionFiltro || grupo.region === regionFiltro).length && (
-        <div className="card"><div className="empty">No hay rutas con volumen y tarifa para comparar{regionFiltro ? ` en ${REG_LABELS[regionFiltro] || regionFiltro}` : ''}.</div></div>
+      {!rutasPorRegion.length && (
+        <div className="card"><div className="empty">No hay rutas con volumen y tarifa para comparar con las regiones seleccionadas.</div></div>
       )}
 
       {/* Puertos con volumen SIN cotización — se muestran para evidenciar, no se comparan */}

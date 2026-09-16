@@ -31,6 +31,8 @@ const oferKey = (nombre) => (nombre || '').trim().toLowerCase()
 export function calcularComparativoVolumen(porRuta, volumenes, periodo = 'anual', opts = {}) {
   const idx = indexarVolumen(volumenes || [])
   const paisFiltro = opts.paisFiltro || ''
+  // Regiones incluidas (array). Si viene vacío o null, se incluyen todas.
+  const regionesIncluidas = (opts.regiones && opts.regiones.length) ? new Set(opts.regiones) : null
   // Divisor de la fórmula costo = (volumen / divisor) × tarifa. Por defecto 2
   // (1 contenedor de 40' = 2 TEUs). Configurable desde la vista.
   const divisor = Number(opts.divisor) > 0 ? Number(opts.divisor) : 2
@@ -39,6 +41,7 @@ export function calcularComparativoVolumen(porRuta, volumenes, periodo = 'anual'
   const detalle = []
   for (const r of porRuta) {
     if (paisFiltro && r.pais !== paisFiltro) continue
+    if (regionesIncluidas && !regionesIncluidas.has(r.region)) continue
     const vol = volumenDe(idx, r.pais, r.origen, periodo)
     const costo = (vol / divisor) * Number(r.tarifa || 0)
     detalle.push({
