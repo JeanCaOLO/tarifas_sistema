@@ -14,6 +14,7 @@ import AdminRankingRegionalR2 from '../components/AdminR2/AdminRankingRegionalR2
 import AdminComparativa from '../components/AdminR2/AdminComparativa'
 import AdminCondicionesOperativas from '../components/AdminR2/AdminCondicionesOperativas'
 import AdminConfig from '../components/Admin/AdminConfig'
+import AdminComparativoVolumen from '../components/Admin/AdminComparativoVolumen'
 
 export const AdminContext = createContext(null)
 
@@ -26,6 +27,7 @@ export default function AdminPage() {
   const [respuestasR2, setRespuestasR2] = useState([])
   const [tarifasR2, setTarifasR2] = useState([])
   const [condOpR2, setCondOpR2] = useState([])
+  const [volumenes, setVolumenes] = useState([])
   const [etapa, setEtapa] = useState('1') // '1' | '2'
   const [tab, setTab] = useState('respuestas')
   // Oferentes excluidos del cálculo de rankings (clave: nombre normalizado)
@@ -71,18 +73,20 @@ export default function AdminPage() {
     try {
       // Cargar la configuración de rankings (compartida en Supabase) antes de calcular
       await fetchConfig().catch(() => {})
-      const [subs, rates, subsR2, ratesR2, condOp] = await Promise.all([
+      const [subs, rates, subsR2, ratesR2, condOp, vols] = await Promise.all([
         fetchAll('v_rfp_respuestas', { col: 'created_at', asc: false }),
         fetchAll('v_rfp_tarifas', { col: 'id', asc: true }),
         fetchAll('v_rfp_respuestas_r2', { col: 'created_at', asc: false }).catch(() => []),
         fetchAll('v_rfp_tarifas_r2', { col: 'id', asc: true }).catch(() => []),
-        fetchAll('v_rfp_condiciones_operativas_r2', { col: 'created_at', asc: false }).catch(() => [])
+        fetchAll('v_rfp_condiciones_operativas_r2', { col: 'created_at', asc: false }).catch(() => []),
+        fetchAll('v_rfp_volumen_puerto', { col: 'id', asc: true }).catch(() => [])
       ])
       setRespuestas(subs)
       setTarifas(rates)
       setRespuestasR2(subsR2)
       setTarifasR2(ratesR2)
       setCondOpR2(condOp)
+      setVolumenes(vols)
     } catch (e) {
       console.error('Error cargando datos:', e)
     } finally {
@@ -110,6 +114,7 @@ export default function AdminPage() {
     setRespuestasR2([])
     setTarifasR2([])
     setCondOpR2([])
+    setVolumenes([])
   }
 
   useEffect(() => {
@@ -140,7 +145,7 @@ export default function AdminPage() {
   if (!user) return <AdminLogin onLogin={login} />
 
   const ctx = {
-    user, respuestas, tarifas, respuestasR2, tarifasR2, condOpR2,
+    user, respuestas, tarifas, respuestasR2, tarifasR2, condOpR2, volumenes,
     loading, cargarDatos, logout, tab, setTab, etapa, setEtapa: handleEtapaChange,
     oferentesExcluidos, toggleOferenteExcluido, limpiarExcluidos, configVersion
   }
@@ -151,8 +156,9 @@ export default function AdminPage() {
       <div className="page">
         {loading && <div className="loading"><span className="spin" /><br />Cargando respuestas…</div>}
 
-        {/* Configuración (disponible en ambas etapas) */}
+        {/* Configuración y Comparativo Volumen (disponibles en ambas etapas) */}
         {!loading && tab === 'config' && <AdminConfig />}
+        {!loading && tab === 'volumen' && <AdminComparativoVolumen key={configVersion} />}
 
         {/* Etapa 1 tabs */}
         {!loading && etapa === '1' && tab === 'respuestas' && <AdminRespuestas />}

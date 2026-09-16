@@ -27,12 +27,12 @@ export default function AdminLogin({ onLogin }) {
           <h1>Panel Administrativo</h1>
           <p>RFP 2026-2027 · Matriz de Tarifas Marítimas</p>
         </div>
-        <form className="login-body" onSubmit={handleSubmit}>
+        <form className="login-body" onSubmit={handleSubmit} autoComplete="off">
           {error && <div className="login-err" style={{ display: 'block' }}>{error}</div>}
           <label>Correo</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@tuempresa.com" />
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@tuempresa.com" autoComplete="off" />
           <label>Contraseña</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" />
           <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
             {loading ? 'Verificando…' : 'Ingresar'}
           </button>

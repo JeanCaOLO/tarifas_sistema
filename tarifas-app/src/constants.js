@@ -27,7 +27,20 @@ export const ORIGENES = [
   ['Shanghai, China','Asia Puertos Base'],['Shekou, China','Asia Puertos Base'],['Shenzhen, China','Asia Puertos Base'],
   ['Subic Bay, Filipinas','Asia'],['Tianjin, China','Asia'],['Valencia, España','Europa'],
   ['Xiamen, China','Asia Puertos Base'],['Xiaolan, China','Asia'],['Xingang, China','Asia'],
-  ['Yantian, China','Asia Puertos Base'],['Zhangjiagang, China','Asia'],['Zhongshan, China','Asia']
+  ['Yantian, China','Asia Puertos Base'],['Zhangjiagang, China','Asia'],['Zhongshan, China','Asia'],
+  // Puertos adicionales presentes en el volumen (sin cotización actual)
+  ['Beijiao, China','Asia'],['Leixões, Portugal','Europa'],['Marín, España','Europa'],
+  ['Mawei, China','Asia'],['Nanjing, China','Asia'],['Shunde, China','Asia'],
+  ['Waihai, China','Asia'],['Duchcov, Chequia','Europa'],['Everglades, Estados Unidos','America'],
+  ['Massalaves, España','Europa'],['Taicang, China','Asia'],['Vigo, España','Europa'],
+  ['Shandong, China','Asia'],['George Town, Malasia','Asia'],['Yunfu, China','Asia'],
+  ['Antwerp, Bélgica','Europa'],['California, Estados Unidos','America'],['Callao, Perú','America'],
+  ['Guayaquil, Ecuador','America'],['Jebel Ali, EAU','Asia'],['Manila, Filipinas','Asia'],
+  ['Posorja, Ecuador','America'],['San José, Costa Rica','America'],['Savannah, Estados Unidos','America'],
+  ['Veracruz, México','America'],
+  // Puertos de arribo que también aparecen como origen en el volumen
+  ['Caldera, Costa Rica','America'],['Moín, Costa Rica','America'],['Quetzal, Guatemala','America'],
+  ['Barrios, Guatemala','America'],['Santo Tomás de Castilla, Guatemala','America']
 ]
 
 export const PUERTOS = [

@@ -3,6 +3,7 @@ import {
   loadConfig, saveConfig, resetConfig, getDefaults, sumaPesos, RUBRO_LABELS
 } from '../../utils/rankingConfig'
 import { PAISES_MAP } from '../../constants'
+import AdminVolumen from './AdminVolumen'
 
 /**
  * Módulo de Configuración de Rankings.
@@ -75,12 +76,15 @@ export default function AdminConfig() {
         <button className={`btn btn-sm ${seccion === 'E1_REG' ? '' : 'btn-ghost'}`} onClick={() => setSeccion('E1_REG')}>Etapa 1 · Regional</button>
         <button className={`btn btn-sm ${seccion === 'E2' ? '' : 'btn-ghost'}`} onClick={() => setSeccion('E2')}>Etapa 2 · Rubros</button>
         <button className={`btn btn-sm ${seccion === 'E2_REG' ? '' : 'btn-ghost'}`} onClick={() => setSeccion('E2_REG')}>Etapa 2 · Regional</button>
+        <button className={`btn btn-sm ${seccion === 'VOL' ? '' : 'btn-ghost'}`} onClick={() => setSeccion('VOL')}>📦 Volumen</button>
         <span className="spacer" />
-        {guardado && <span style={{ color: 'var(--teal-deep)', fontWeight: 700, fontSize: 12.5 }}>✓ Guardado</span>}
-        <button className="btn btn-ghost btn-sm" onClick={restaurar} disabled={guardando}>Restaurar defaults</button>
-        <button className="btn btn-sm" onClick={guardar} disabled={guardando || (seccion === 'E1' && sumaE1 !== 100) || (seccion === 'E2' && sumaE2 !== 100)}>
-          {guardando ? 'Guardando…' : 'Guardar cambios'}
-        </button>
+        {seccion !== 'VOL' && guardado && <span style={{ color: 'var(--teal-deep)', fontWeight: 700, fontSize: 12.5 }}>✓ Guardado</span>}
+        {seccion !== 'VOL' && <button className="btn btn-ghost btn-sm" onClick={restaurar} disabled={guardando}>Restaurar defaults</button>}
+        {seccion !== 'VOL' && (
+          <button className="btn btn-sm" onClick={guardar} disabled={guardando || (seccion === 'E1' && sumaE1 !== 100) || (seccion === 'E2' && sumaE2 !== 100)}>
+            {guardando ? 'Guardando…' : 'Guardar cambios'}
+          </button>
+        )}
       </div>
       {error && (
         <div className="card" style={{ padding: '10px 14px', marginBottom: 14, background: '#fde8e8', color: '#c0392b', fontSize: 12.5 }}>
@@ -127,6 +131,8 @@ export default function AdminConfig() {
           onPais={(reg, pais, val) => update((n) => { n.E2_REG[reg].paisPesos[pais] = val })}
         />
       )}
+
+      {seccion === 'VOL' && <AdminVolumen />}
     </section>
   )
 }
