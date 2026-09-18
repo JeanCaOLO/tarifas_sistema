@@ -6,10 +6,8 @@ import { PAISES_MAP, REGION_POR_ORIGEN } from '../../constants'
 import { getPesosE1, getReglasE1 } from '../../utils/rankingConfig'
 import { exportarReporteOferente } from '../../utils/reporteOferente'
 import { exportarRankingPDF } from '../../utils/reporteRankingPDF'
+import FiltroRegiones, { REGIONES_ORIGEN, REG_LABELS } from './FiltroRegiones'
 import ExcluirOferentes, { aplicarExclusion } from './ExcluirOferentes'
-
-const REGIONES_ORIGEN = ['America', 'Europa', 'Asia Puertos Base', 'Asia']
-const REG_LABELS = { America: 'América', Europa: 'Europa', 'Asia Puertos Base': 'Asia PB', Asia: 'Asia' }
 
 export default function AdminRanking() {
   const { respuestas, tarifas, oferentesExcluidos, volumenes } = useContext(AdminContext)
@@ -61,16 +59,6 @@ export default function AdminRanking() {
             <option value="tarifa_40_hc">40" HC</option>
           </select>
         </div>
-        <div className="f"><label>Región origen</label>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', paddingTop: 4 }}>
-            {REGIONES_ORIGEN.map((reg) => (
-              <label key={reg} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5 }}>
-                <input type="checkbox" checked={regiones.has(reg)} onChange={() => toggleRegion(reg)} />
-                {REG_LABELS[reg] || reg}
-              </label>
-            ))}
-          </div>
-        </div>
         <div className="f"><label>Región (CA/VE)</label>
           <select value={formRegion} onChange={(e) => setFormRegion(e.target.value)}>
             <option value="">Todas</option><option value="CA">CA</option><option value="VE">VE</option>
@@ -86,6 +74,13 @@ export default function AdminRanking() {
           📄 PDF resumen
         </button>
       </div>
+
+      <FiltroRegiones
+        seleccionadas={regiones}
+        onToggle={toggleRegion}
+        onTodas={() => setRegiones(new Set(REGIONES_ORIGEN))}
+        onSoloPB={() => setRegiones(new Set(['Asia Puertos Base']))}
+      />
 
       <ExcluirOferentes respuestas={respuestas} />
 

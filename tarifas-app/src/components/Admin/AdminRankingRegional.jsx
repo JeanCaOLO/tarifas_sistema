@@ -4,9 +4,8 @@ import { calcularRankingRegional } from '../../utils/ranking'
 import { PAISES_MAP } from '../../constants'
 import { exportarReporteRegional } from '../../utils/reporteOferente'
 import { exportarRankingRegionalPDF } from '../../utils/reporteRankingPDF'
+import FiltroRegiones, { REGIONES_ORIGEN } from './FiltroRegiones'
 import ExcluirOferentes, { aplicarExclusion } from './ExcluirOferentes'
-
-const REGIONES_ORIGEN = ['America', 'Europa', 'Asia Puertos Base', 'Asia']
 
 export default function AdminRankingRegional() {
   const { respuestas, tarifas, oferentesExcluidos } = useContext(AdminContext)
@@ -45,16 +44,6 @@ export default function AdminRankingRegional() {
             <option value="tarifa_40_hc">40" HC</option>
           </select>
         </div>
-        <div className="f"><label>Regiones (pesos se re-normalizan)</label>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', paddingTop: 4 }}>
-            {REGIONES_ORIGEN.map((reg) => (
-              <label key={reg} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5 }}>
-                <input type="checkbox" checked={regiones.has(reg)} onChange={() => toggleRegion(reg)} />
-                {regLabels[reg] || reg}
-              </label>
-            ))}
-          </div>
-        </div>
         <span className="spacer" />
         <span className="count-note">{notaFinal.length} oferentes</span>
         <button className="btn btn-sm" disabled={!notaFinal.length}
@@ -62,6 +51,14 @@ export default function AdminRankingRegional() {
           📄 PDF resumen
         </button>
       </div>
+
+      <FiltroRegiones
+        seleccionadas={regiones}
+        onToggle={toggleRegion}
+        onTodas={() => setRegiones(new Set(REGIONES_ORIGEN))}
+        onSoloPB={() => setRegiones(new Set(['Asia Puertos Base']))}
+        label="Regiones de origen (los pesos se re-normalizan)"
+      />
 
       <PesosPorPais resultado={resultado} regLabels={regLabels} />
 
