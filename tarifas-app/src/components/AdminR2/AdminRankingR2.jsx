@@ -2,18 +2,30 @@ import { useState, useContext } from 'react'
 import { AdminContext } from '../../pages/AdminPage'
 import { calcularRankingR2 } from '../../utils/rankingR2'
 import { fmtMoney } from '../../utils/format'
-import { PAISES_MAP } from '../../constantsR2'
+import { PAISES_MAP, REGION_POR_ORIGEN } from '../../constantsR2'
 import { getPesosE2, getReglasE2 } from '../../utils/rankingConfig'
 import { exportarReporteOferente } from '../../utils/reporteOferente'
+import { exportarRankingPDF } from '../../utils/reporteRankingPDF'
 import ExcluirOferentes, { aplicarExclusion } from '../Admin/ExcluirOferentes'
 
+const REGIONES_ORIGEN = ['America', 'Europa', 'Asia Puertos Base', 'Asia']
+const REG_LABELS = { America: 'América', Europa: 'Europa', 'Asia Puertos Base': 'Asia PB', Asia: 'Asia' }
+
 export default function AdminRankingR2() {
-  const { respuestasR2, tarifasR2, condOpR2, oferentesExcluidos } = useContext(AdminContext)
+  const { respuestasR2, tarifasR2, condOpR2, oferentesExcluidos, volumenes } = useContext(AdminContext)
   const pesos = getPesosE2()
   const [pais, setPais] = useState('')
   const [campo, setCampo] = useState('tarifa_40_std')
-  const [regionFiltro, setRegionFiltro] = useState('')
+  const [regiones, setRegiones] = useState(() => new Set(REGIONES_ORIGEN))
   const [formRegion, setFormRegion] = useState('')
+
+  function toggleRegion(reg) {
+    setRegiones((prev) => {
+      const next = new Set(prev)
+      if (next.has(reg)) next.delete(reg); else next.add(reg)
+      return next
+    })
+  }
 
   const tarifas = tarifasR2 || []
 
@@ -33,8 +45,12 @@ export default function AdminRankingR2() {
     }
   })
 
-  const { respuestas: respFilt, tarifas: tarFilt } = aplicarExclusion(respuestas, tarifas, oferentesExcluidos)
-  const { porRuta, global } = calcularRankingR2(tarFilt, respFilt, { pais, campo, regionFiltro, formRegion })
+  const tarifasRegion = (regiones.size === REGIONES_ORIGEN.length)
+    ? tarifas
+    : tarifas.filter((t) => regiones.has(REGION_POR_ORIGEN.get(t.origen) || t.region))
+
+  const { respuestas: respFilt, tarifas: tarFilt } = aplicarExclusion(respuestas, tarifasRegion, oferentesExcluidos)
+  const { porRuta, global } = calcularRankingR2(tarFilt, respFilt, { pais, campo, regionFiltro: '', formRegion, volumenes })
 
   // Agrupar por ruta
   const rutasMap = new Map()
@@ -63,11 +79,14 @@ export default function AdminRankingR2() {
           </select>
         </div>
         <div className="f"><label>Región origen</label>
-          <select value={regionFiltro} onChange={(e) => setRegionFiltro(e.target.value)}>
-            <option value="">Todas</option>
-            <option value="Asia">Asia</option><option value="Asia Puertos Base">Asia Puertos Base</option>
-            <option value="Europa">Europa</option><option value="America">América</option>
-          </select>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', paddingTop: 4 }}>
+            {REGIONES_ORIGEN.map((reg) => (
+              <label key={reg} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5 }}>
+                <input type="checkbox" checked={regiones.has(reg)} onChange={() => toggleRegion(reg)} />
+                {REG_LABELS[reg] || reg}
+              </label>
+            ))}
+          </div>
         </div>
         <div className="f"><label>Región (CA/VE)</label>
           <select value={formRegion} onChange={(e) => setFormRegion(e.target.value)}>
@@ -76,6 +95,13 @@ export default function AdminRankingR2() {
         </div>
         <span className="spacer" />
         <span className="count-note">{porRuta.length} evaluaciones · {global.length} oferentes</span>
+        <button className="btn btn-sm" disabled={!global.length}
+          onClick={() => exportarRankingPDF({ porRuta, global }, {
+            etapa: '2', campo, pesos,
+            regionesTxt: regiones.size === REGIONES_ORIGEN.length ? 'Todas' : [...regiones].map((r) => REG_LABELS[r] || r).join(', ')
+          })}>
+          📄 PDF resumen
+        </button>
       </div>
 
       <ExcluirOferentes respuestas={respuestasR2} />
@@ -87,8 +113,8 @@ export default function AdminRankingR2() {
             <thead><tr>
               <th>#</th><th>Oferente</th><th>País</th><th className="th-num">Rutas</th>
               <th className="th-num">Tarifa ({pesos.tarifas}%)</th><th className="th-num">Días ({pesos.dias_libres}%)</th>
-              <th className="th-num">Crédito ({pesos.credito}%)</th><th className="th-num">Gastos ({pesos.gastos_destino}%)</th>
-              <th className="th-num">Alloc. ({pesos.allocation}%)</th><th className="th-num">FOB ({pesos.gastos_fob}%)</th>
+              <th className="th-num">Crédito ({pesos.credito}%)</th>
+              <th className="th-num">Alloc. ({pesos.allocation}%)</th>
               <th className="th-num">Repr. ({pesos.representacion}%)</th><th className="th-num">Total</th>
               <th>Reporte</th>
             </tr></thead>
@@ -101,14 +127,12 @@ export default function AdminRankingR2() {
                   <td style={{ fontWeight: 600 }}>{o.oferente}</td>
                   <td><span className="badge">{o.pais_nombre}</span></td>
                   <td className="td-num num" title={`Número de rutas evaluadas: ${o.rutas}`}>{o.rutas}</td>
-                  <td className="td-num num" title={`Promedio de la contribución de Tarifa (${pesos.tarifas}%) sobre ${o.rutas} ruta(s).\nTarifa del oferente: ${rangoTxt(o.val_tarifa, '$')}\nMáx: ${pesos.tarifas}.00`}>{o.avg_tarifa.toFixed(2)}</td>
+                  <td className="td-num num" title={`TARIFA (${pesos.tarifas}%) ponderada por VOLUMEN (costo total)\nPuntaje = (mejor costo total ÷ costo total del oferente) × ${pesos.tarifas}%\n= ($${fmtMoney(o.mejorCostoTotal || 0)} ÷ $${fmtMoney(o.costoTotal || 0)}) × ${pesos.tarifas}%\n= ${o.avg_tarifa.toFixed(2)} puntos\nCosto total = suma de (tarifa + impresión BL) × volumen ÷ divisor en sus ${o.rutas} ruta(s).\nMejor costo total = suma del menor costo de cada una de sus rutas.\nTarifa cotizada del oferente: ${rangoTxt(o.val_tarifa, '$')}`}>{o.avg_tarifa.toFixed(2)}</td>
                   <td className="td-num num" title={`Promedio de Días libres (${pesos.dias_libres}%) sobre ${o.rutas} ruta(s).\nValor del oferente: ${rangoTxt(o.val_dias, '', ' días')}`}>{o.avg_dias.toFixed(2)}</td>
                   <td className="td-num num" title={`Promedio de Crédito (${pesos.credito}%) sobre ${o.rutas} ruta(s).\nValor del oferente: ${o.val_credito ?? 0} días · facturación: ${o.val_facturacion || '(no indicada)'}`}>{o.avg_credito.toFixed(2)}</td>
-                  <td className="td-num num" title={`Promedio de Gastos destino (${pesos.gastos_destino}%) sobre ${o.rutas} ruta(s).\nGastos del oferente: ${rangoTxt(o.val_gastos, '$')}`}>{o.avg_gastos.toFixed(2)}</td>
                   <td className="td-num num" title={`Promedio de Allocation (${pesos.allocation}%) sobre ${o.rutas} ruta(s).\nAllocation total del oferente: ${o.val_alloc ?? 0}`}>{o.avg_allocation.toFixed(2)}</td>
-                  <td className="td-num num" title={`Promedio de Gastos FOB (${pesos.gastos_fob}%) sobre ${o.rutas} ruta(s).\nFOB promedio del oferente: $${fmtMoney(o.val_fob || 0)}`}>{o.avg_fob.toFixed(2)}</td>
-                  <td className="td-num num" title={`Promedio de Representación/Oficinas (${pesos.representacion}%) sobre ${o.rutas} ruta(s).\n# de "Sí" del oferente: ${o.val_repre ?? 0}`}>{o.avg_repre.toFixed(2)}</td>
-                  <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={`Promedio del puntaje total sobre ${o.rutas} ruta(s).\n= Tarifa ${o.avg_tarifa.toFixed(2)} + Días ${o.avg_dias.toFixed(2)} + Crédito ${o.avg_credito.toFixed(2)} + Gastos ${o.avg_gastos.toFixed(2)} + Alloc. ${o.avg_allocation.toFixed(2)} + FOB ${o.avg_fob.toFixed(2)} + Repr. ${o.avg_repre.toFixed(2)}`}>{o.avg_total.toFixed(2)}</td>
+                  <td className="td-num num" title={`REPRESENTACIÓN / OFICINAS (${pesos.representacion}%)\n# de "Sí" del oferente: ${o.val_repre ?? 0}\nPuntaje = (# "Sí" del oferente ÷ mayor # "Sí" entre oferentes) × ${pesos.representacion}%\nEs proporcional al oferente con más oficinas/representación (ese obtiene ${pesos.representacion}).\nUn valor bajo significa que tiene pocos "Sí" comparado con el líder, aunque sí tenga representación.`}>{o.avg_repre.toFixed(2)}</td>
+                  <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={`Promedio del puntaje total sobre ${o.rutas} ruta(s).\n= Tarifa ${o.avg_tarifa.toFixed(2)} + Días ${o.avg_dias.toFixed(2)} + Crédito ${o.avg_credito.toFixed(2)} + Alloc. ${o.avg_allocation.toFixed(2)} + Repr. ${o.avg_repre.toFixed(2)}`}>{o.avg_total.toFixed(2)}</td>
                   <td><button className="btn btn-ghost btn-sm" title="Descargar reporte de este oferente con sus rubros más bajos" onClick={() => exportarReporteOferente(o, '2')}>📄 Descargar</button></td>
                 </tr>
               ))}
@@ -131,8 +155,8 @@ export default function AdminRankingR2() {
               <thead><tr>
                 <th>#</th><th>Oferente</th><th className="th-num">Tarifa</th>
                 <th className="th-num">P.Tarifa</th><th className="th-num">Días</th>
-                <th className="th-num">Crédito</th><th className="th-num">Gastos</th>
-                <th className="th-num">Alloc.</th><th className="th-num">FOB</th>
+                <th className="th-num">Crédito</th>
+                <th className="th-num">Alloc.</th>
                 <th className="th-num">Repr.</th><th className="th-num">Total</th>
               </tr></thead>
               <tbody>
@@ -146,9 +170,7 @@ export default function AdminRankingR2() {
                     <td className="td-num num" title={tipTarifaR2(r)}>{r.contrib_tarifa.toFixed(2)}</td>
                     <td className="td-num num" title={tipDiasR2(r)}>{r.contrib_dias.toFixed(2)}</td>
                     <td className="td-num num" title={tipCreditoR2(r)}>{r.contrib_credito.toFixed(2)}</td>
-                    <td className="td-num num" title={tipGastosR2(r)}>{r.contrib_gastos.toFixed(2)}</td>
                     <td className="td-num num" title={tipAllocR2(r)}>{r.contrib_allocation.toFixed(2)}</td>
-                    <td className="td-num num" title={tipFobR2(r)}>{r.contrib_fob.toFixed(2)}</td>
                     <td className="td-num num" title={tipRepreR2(r)}>{r.contrib_repre.toFixed(2)}</td>
                     <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={tipTotalR2(r)}>{r.puntaje.toFixed(2)}</td>
                   </tr>
@@ -174,11 +196,20 @@ function rangoTxt(rango, prefijo = '', sufijo = '') {
 // (leen los pesos y reglas vigentes desde la configuración)
 function tipTarifaR2(r) {
   const p = getPesosE2().tarifas
+  if (r.volumenRuta > 0) {
+    return `TARIFA ponderada por VOLUMEN (${p}% del puntaje)\n` +
+      `Costo = (tarifa + impresión BL) × volumen ÷ divisor\n` +
+      `= ($${fmtMoney(r.tarifa)} + $${fmtMoney(r.gastoSum)}) × ${r.volumenRuta.toLocaleString('en-US')} TEUs ÷ divisor\n` +
+      `= $${fmtMoney(r.costoOferente)}\n` +
+      `Mejor (menor) costo de la ruta: $${fmtMoney(r.mejorCosto)}\n` +
+      `Puntaje = (mejor costo ÷ costo del oferente) × 100 × ${p}%\n` +
+      `= ($${fmtMoney(r.mejorCosto)} ÷ $${fmtMoney(r.costoOferente)}) × 100 × ${p}%\n` +
+      `= ${r.contrib_tarifa.toFixed(2)} puntos\n` +
+      `El menor costo de la ruta obtiene el máximo (${p}).`
+  }
   return `TARIFA (${p}% del puntaje)\n` +
-    `Fórmula: (mejor tarifa de la ruta ÷ tarifa del oferente) × 100 × ${p}%\n` +
-    `= ($${fmtMoney(r.mejorTarifa)} ÷ $${fmtMoney(r.tarifa)}) × 100 × ${p}%\n` +
-    `= ${r.contrib_tarifa.toFixed(2)} puntos\n` +
-    `La tarifa más baja de la ruta obtiene el máximo (${p}).`
+    `Este puerto no tiene volumen cargado → puntaje de tarifa = 0.\n` +
+    `(Con volumen: costo = (tarifa + impresión BL) × volumen ÷ divisor; puntaje = mejor costo ÷ costo × 100 × ${p}%)`
 }
 function tipDiasR2(r) {
   const p = getPesosE2().dias_libres
@@ -214,8 +245,8 @@ function tipGastosR2(r) {
   else if (r.gastoSum <= r.menorGasto) regla = `Es el menor gasto de la ruta → ${g.mejorPts} pts`
   else if (r.gastoSum >= r.mayorGasto && r.mayorGasto > r.menorGasto) regla = `Es el mayor gasto de la ruta → ${g.peorPts} pts`
   else regla = `Gasto intermedio → interpolado entre ${g.mejorPts} y ${g.peorPts}`
-  return `GASTOS DESTINO (${p}% del puntaje)\n` +
-    `Suma de gastos del oferente: $${fmtMoney(r.gastoSum)}\n` +
+  return `GASTOS - Impresión de BL (${p}% del puntaje)\n` +
+    `Costo de impresión de BL del oferente: $${fmtMoney(r.gastoSum)}\n` +
     `Menor de la ruta: $${fmtMoney(r.menorGasto)} (${g.mejorPts}) · Mayor: $${fmtMoney(r.mayorGasto)} (${g.peorPts})\n` +
     `Aplicó: ${regla} = ${r.contrib_gastos.toFixed(2)} puntos`
 }

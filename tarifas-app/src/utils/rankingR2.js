@@ -1,6 +1,7 @@
 import { REGION_POR_ORIGEN, PESOS_R2, RK2_CONFIG_R2, PAISES_MAP, PUERTOS_BASE_CHINA } from '../constantsR2'
 import { numOrNull } from './format'
-import { getPesosE2, getReglasE2, getRegionalE2 } from './rankingConfig'
+import { getPesosE2, getReglasE2, getRegionalE2, getVolumenConfig } from './rankingConfig'
+import { indexarVolumen, volumenDe } from './volumen'
 
 /**
  * Aplica una regla de tramos {alto:{min,pts}, medio:{min,pts}} a un valor.
@@ -9,6 +10,23 @@ function puntosPorTramoR2(valor, regla) {
   if (regla.alto && valor >= regla.alto.min) return regla.alto.pts
   if (regla.medio && valor >= regla.medio.min) return regla.medio.pts
   return 0
+}
+
+/**
+ * Re-normaliza los pesos de región a 100% tomando solo las regiones incluidas.
+ * Si `incluidas` es null/undefined o vacío, devuelve los pesos originales.
+ */
+function renormalizarRegionPesos(regionPesos, incluidas) {
+  if (!incluidas || !incluidas.length) return regionPesos
+  const set = new Set(incluidas)
+  const activos = Object.entries(regionPesos).filter(([reg]) => set.has(reg))
+  const suma = activos.reduce((a, [, p]) => a + (Number(p) || 0), 0)
+  if (suma <= 0) return regionPesos
+  const out = {}
+  for (const [reg, p] of activos) {
+    out[reg] = Math.round((Number(p) / suma) * 100 * 100) / 100
+  }
+  return out
 }
 
 /**
@@ -23,9 +41,13 @@ function puntosPorTramoR2(valor, regla) {
  *    5% Gastos FOB promedio puertos base China (menor = 5, resto proporcional)
  *    5% Representación/Oficinas (mayor # de "Sí" = 5, resto proporcional)
  */
-export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFiltro, formRegion }) {
+export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFiltro, formRegion, volumenes, divisor }) {
   const pesos = getPesosE2()
   const reglas = getReglasE2()
+  // Volumen para ponderar la tarifa (mismo criterio que Etapa 1).
+  const volIdx = indexarVolumen(volumenes || [])
+  const usaVolumen = (volumenes || []).length > 0
+  const divVol = Number(divisor) > 0 ? Number(divisor) : (Number(getVolumenConfig().divisor) > 0 ? Number(getVolumenConfig().divisor) : 2)
   let rates = (pais ? tarifas.filter((t) => t.pais === pais) : tarifas)
     .filter((t) => t[campo] !== null && Number(t[campo]) > 0)
 
@@ -106,18 +128,25 @@ export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFilt
     const tarifas_arr = arr.map((t) => Number(t[campo]))
     const mejorTarifa = Math.min(...tarifas_arr)
 
-    // Gastos destino (misma lógica que E1)
+    // Volumen del puerto (según país destino).
+    const volumenRuta = usaVolumen ? volumenDe(volIdx, arr[0].pais, arr[0].origen, 'anual') : 0
+
+    // Gastos destino (misma lógica que E1): solo el costo de impresión de BL
     const gastosArr = arr.map((t) => {
       const sub = subMap.get(t.submission_id)
       if (!sub) return null
-      return [sub.gasto_impresion_bl, sub.gasto_retiro_vacio,
-        sub.gasto_demora_contenedor_dia, sub.gasto_demora_chasis_dia,
-        sub.gasto_chasis_3_ejes, sub.gasto_estadias]
-        .reduce((acc, v) => acc + (v !== null && v !== undefined ? Number(v) : 0), 0)
+      const v = sub.gasto_impresion_bl
+      return (v !== null && v !== undefined) ? Number(v) : 0
     })
     const gastosValidos = gastosArr.filter((v) => v !== null && v > 0)
     const menorGasto = gastosValidos.length ? Math.min(...gastosValidos) : 0
     const mayorGasto = gastosValidos.length ? Math.max(...gastosValidos) : 0
+
+    // Costo ponderado por volumen por oferente y el mejor (menor).
+    // costo = (tarifa + impresión BL) × volumen ÷ divisor
+    const costosArr = arr.map((t, i) => ((Number(t[campo]) + (gastosArr[i] || 0)) * volumenRuta) / divVol)
+    const costosValidos = costosArr.filter((c) => c > 0)
+    const mejorCosto = costosValidos.length ? Math.min(...costosValidos) : 0
 
     for (let idx = 0; idx < arr.length; idx++) {
       const t = arr[idx]
@@ -126,9 +155,15 @@ export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFilt
 
       const oferKey = (t.oferente || sub.oferente || '').trim().toLowerCase()
 
-      // 1. Tarifa (peso configurable)
+      // 1. Tarifa (peso configurable) — ponderada por volumen (costo)
       const tarifa = Number(t[campo])
-      const puntTarifa = mejorTarifa > 0 ? (mejorTarifa / tarifa) * 100 : 0
+      const costoOferente = costosArr[idx]
+      let puntTarifa = 0
+      if (usaVolumen) {
+        puntTarifa = (mejorCosto > 0 && costoOferente > 0) ? (mejorCosto / costoOferente) * 100 : 0
+      } else {
+        puntTarifa = mejorTarifa > 0 ? (mejorTarifa / tarifa) * 100 : 0
+      }
       const contrib_tarifa = puntTarifa * (pesos.tarifas / 100)
 
       // 2. Días libres destino — tramos configurables
@@ -149,19 +184,10 @@ export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFilt
       const contrib_credito_arribo = facturacion === 'arribo' ? (cr.facturacionArriboPts ?? 2.5) : 0
       const contrib_credito = contrib_credito_dias + contrib_credito_arribo
 
-      // 4. Gastos destino — interpolación configurable
+      // 4. Gastos destino — la impresión de BL ya se contempla en el costo de
+      // tarifa. El rubro Gastos ya NO suma a la nota.
       const gastoSum = gastosArr[idx] || 0
-      const mejorPts = reglas.gastos?.mejorPts ?? 5
-      const peorPts = reglas.gastos?.peorPts ?? 1
-      let contrib_gastos = 0
-      if (gastosValidos.length > 0 && gastoSum > 0) {
-        if (gastoSum <= menorGasto) contrib_gastos = mejorPts
-        else if (gastoSum >= mayorGasto && mayorGasto > menorGasto) contrib_gastos = peorPts
-        else if (mayorGasto > menorGasto) {
-          const ratio = (gastoSum - menorGasto) / (mayorGasto - menorGasto)
-          contrib_gastos = mejorPts - ratio * (mejorPts - peorPts)
-        } else contrib_gastos = mejorPts
-      }
+      const contrib_gastos = 0
 
       // 5. Allocation — proporcional al mayor (peso configurable)
       const allocOferente = allocationPorOferente.get(oferKey) || 0
@@ -170,12 +196,9 @@ export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFilt
         contrib_allocation = (allocOferente / maxAllocation) * pesos.allocation
       }
 
-      // 6. Gastos FOB promedio — menor = máximo, proporcional (peso configurable)
+      // 6. Gastos FOB — ya NO suma a la nota (se conserva el valor solo informativo)
       const fobOferente = fobPorOferente.get(oferKey) || 0
-      let contrib_fob = 0
-      if (minFob > 0 && fobOferente > 0) {
-        contrib_fob = (minFob / fobOferente) * pesos.gastos_fob
-      }
+      const contrib_fob = 0
 
       // 7. Representación/Oficinas — mayor # Sí = máximo, proporcional (peso configurable)
       const repreOferente = reprePorOferente.get(oferKey) || 0
@@ -184,8 +207,9 @@ export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFilt
         contrib_repre = (repreOferente / maxRepre) * pesos.representacion
       }
 
+      // Gastos y FOB ya no suman a la nota.
       const puntajeTotal = contrib_tarifa + contrib_dias + contrib_credito +
-        contrib_gastos + contrib_allocation + contrib_fob + contrib_repre
+        contrib_allocation + contrib_repre
 
       porRuta.push({
         origen: t.origen,
@@ -194,6 +218,9 @@ export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFilt
         pais: t.pais,
         oferente: t.oferente || sub.oferente,
         tarifa, mejorTarifa, diasLibres, credito,
+        volumenRuta: Math.round(volumenRuta * 100) / 100,
+        costoOferente: Math.round((costoOferente || 0) * 100) / 100,
+        mejorCosto: Math.round(mejorCosto * 100) / 100,
         facturacion: facturacion || '',
         gastoSum: Math.round((gastosArr[idx] || 0) * 100) / 100,
         menorGasto: Math.round(menorGasto * 100) / 100,
@@ -225,22 +252,23 @@ export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFilt
     const clave = r.oferente.trim().toLowerCase() + '|' + r.pais
     if (!oferMap.has(clave)) oferMap.set(clave, {
       oferente: r.oferente, pais: r.pais, pais_nombre: r.pais_nombre,
-      rutas: 0, sum_tarifa: 0, sum_dias: 0, sum_credito: 0,
-      sum_gastos: 0, sum_allocation: 0, sum_fob: 0, sum_repre: 0, sum_total: 0,
+      rutas: 0, sum_dias: 0, sum_credito: 0,
+      sum_gastos: 0, sum_allocation: 0, sum_fob: 0, sum_repre: 0,
+      sum_costo: 0, sum_mejorCosto: 0,
       // valores originales del oferente
       val_tarifas: [], val_dias: [], val_credito: r.credito, val_facturacion: r.facturacion,
       val_gastos: [], val_alloc: r.allocOferente, val_fob: r.fobOferente, val_repre: r.repreOferente
     })
     const o = oferMap.get(clave)
     o.rutas++
-    o.sum_tarifa += r.contrib_tarifa
     o.sum_dias += r.contrib_dias
     o.sum_credito += r.contrib_credito
     o.sum_gastos += r.contrib_gastos
     o.sum_allocation += r.contrib_allocation
     o.sum_fob += r.contrib_fob
     o.sum_repre += r.contrib_repre
-    o.sum_total += r.puntaje
+    o.sum_costo += (r.costoOferente || 0)
+    o.sum_mejorCosto += (r.mejorCosto || 0)
     o.val_tarifas.push(r.tarifa)
     o.val_dias.push(r.diasLibres)
     if (r.gastoSum > 0) o.val_gastos.push(r.gastoSum)
@@ -252,26 +280,34 @@ export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFilt
     return { min: Math.round(min * 100) / 100, max: Math.round(max * 100) / 100 }
   }
 
-  const global = [...oferMap.values()].map((o) => ({
-    oferente: o.oferente, pais: o.pais, pais_nombre: o.pais_nombre, rutas: o.rutas,
-    avg_tarifa: Math.round(o.sum_tarifa / o.rutas * 100) / 100,
-    avg_dias: Math.round(o.sum_dias / o.rutas * 100) / 100,
-    avg_credito: Math.round(o.sum_credito / o.rutas * 100) / 100,
-    avg_gastos: Math.round(o.sum_gastos / o.rutas * 100) / 100,
-    avg_allocation: Math.round(o.sum_allocation / o.rutas * 100) / 100,
-    avg_fob: Math.round(o.sum_fob / o.rutas * 100) / 100,
-    avg_repre: Math.round(o.sum_repre / o.rutas * 100) / 100,
-    avg_total: Math.round(o.sum_total / o.rutas * 100) / 100,
-    // valores originales para tooltips
-    val_tarifa: rango(o.val_tarifas),
-    val_dias: rango(o.val_dias),
-    val_credito: o.val_credito,
-    val_facturacion: o.val_facturacion,
-    val_gastos: rango(o.val_gastos),
-    val_alloc: o.val_alloc,
-    val_fob: o.val_fob,
-    val_repre: o.val_repre
-  })).sort((a, b) => b.avg_total - a.avg_total)
+  const global = [...oferMap.values()].map((o) => {
+    // TARIFA global ponderada por volumen (costo total)
+    const avg_tarifa = (usaVolumen && o.sum_costo > 0)
+      ? Math.round((o.sum_mejorCosto / o.sum_costo) * pesos.tarifas * 100) / 100
+      : 0
+    const avg_dias = Math.round(o.sum_dias / o.rutas * 100) / 100
+    const avg_credito = Math.round(o.sum_credito / o.rutas * 100) / 100
+    const avg_gastos = Math.round(o.sum_gastos / o.rutas * 100) / 100
+    const avg_allocation = Math.round(o.sum_allocation / o.rutas * 100) / 100
+    const avg_fob = Math.round(o.sum_fob / o.rutas * 100) / 100
+    const avg_repre = Math.round(o.sum_repre / o.rutas * 100) / 100
+    const avg_total = Math.round((avg_tarifa + avg_dias + avg_credito + avg_gastos + avg_allocation + avg_fob + avg_repre) * 100) / 100
+    return {
+      oferente: o.oferente, pais: o.pais, pais_nombre: o.pais_nombre, rutas: o.rutas,
+      avg_tarifa, avg_dias, avg_credito, avg_gastos, avg_allocation, avg_fob, avg_repre, avg_total,
+      costoTotal: Math.round(o.sum_costo * 100) / 100,
+      mejorCostoTotal: Math.round(o.sum_mejorCosto * 100) / 100,
+      // valores originales para tooltips
+      val_tarifa: rango(o.val_tarifas),
+      val_dias: rango(o.val_dias),
+      val_credito: o.val_credito,
+      val_facturacion: o.val_facturacion,
+      val_gastos: rango(o.val_gastos),
+      val_alloc: o.val_alloc,
+      val_fob: o.val_fob,
+      val_repre: o.val_repre
+    }
+  }).sort((a, b) => b.avg_total - a.avg_total)
 
   return { porRuta, global }
 }
@@ -280,12 +316,21 @@ export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFilt
  * Ranking Regional Etapa 2 (CA/VE)
  * Misma lógica que E1 pero sobre datos de ronda 2
  */
-export function calcularRankingRegionalR2(tarifas, respuestas, { formRegion, campo }) {
+export function calcularRankingRegionalR2(tarifas, respuestas, { formRegion, campo, regionesIncluidas }) {
   const config = getRegionalE2()[formRegion]
   if (!config) return { notaFinal: [], paisDetalles: {}, paisPesos: {}, regionPesos: {}, paisesDestino: [] }
 
-  const { regionPesos, paisPesos } = config
+  // Pesos por región re-normalizados a 100% según las regiones incluidas.
+  const regionPesos = renormalizarRegionPesos(config.regionPesos, regionesIncluidas)
+  const { paisPesos } = config
   const paisesDestino = Object.keys(paisPesos)
+  // Pesos de región por país (según volumen real). Fallback al bloque.
+  const pesosDePais = (pais) => renormalizarRegionPesos(
+    (config.regionPesosPorPais && config.regionPesosPorPais[pais]) || config.regionPesos,
+    regionesIncluidas
+  )
+  const regionPesosPorPais = {}
+  for (const p of paisesDestino) regionPesosPorPais[p] = pesosDePais(p)
 
   const subMap = new Map()
   for (const r of respuestas) subMap.set(r.id, r)
@@ -299,7 +344,7 @@ export function calcularRankingRegionalR2(tarifas, respuestas, { formRegion, cam
     return reg.includes(formRegion)
   })
 
-  if (!ratesValidas.length) return { notaFinal: [], paisDetalles: {}, paisPesos, regionPesos, paisesDestino }
+  if (!ratesValidas.length) return { notaFinal: [], paisDetalles: {}, paisPesos, regionPesos, regionPesosPorPais, paisesDestino }
 
   const oferentes = new Set()
   for (const t of ratesValidas) oferentes.add((t.oferente || subMap.get(t.submission_id)?.oferente || '').trim())
@@ -312,7 +357,8 @@ export function calcularRankingRegionalR2(tarifas, respuestas, { formRegion, cam
     paisScores[pais] = {}
     paisDetalles[pais] = []
 
-    const regiones = Object.keys(regionPesos)
+    const pesosPais = regionPesosPorPais[pais]
+    const regiones = Object.keys(pesosPais)
     const oferScoresPorRegion = {}
 
     for (const reg of regiones) {
@@ -347,7 +393,7 @@ export function calcularRankingRegionalR2(tarifas, respuestas, { formRegion, cam
     for (const [ofer, regScores] of Object.entries(oferScoresPorRegion)) {
       let notaPais = 0
       const detalle = { oferente: ofer }
-      for (const [reg, peso] of Object.entries(regionPesos)) {
+      for (const [reg, peso] of Object.entries(pesosPais)) {
         const info = regScores[reg] || { score: 0, avg: null, mejorAvg: null, count: 0 }
         const score = info.score || 0
         const contrib = score * (peso / 100)
@@ -379,7 +425,7 @@ export function calcularRankingRegionalR2(tarifas, respuestas, { formRegion, cam
   }
   notaFinal.sort((a, b) => b.notaFinal - a.notaFinal)
 
-  return { notaFinal, paisDetalles, paisPesos, regionPesos, paisesDestino }
+  return { notaFinal, paisDetalles, paisPesos, regionPesos, regionPesosPorPais, paisesDestino }
 }
 
 // --- Funciones auxiliares ---
@@ -438,9 +484,18 @@ function contarRepresentacion(submission) {
 
   if (!data || typeof data !== 'object') return 0
 
+  const esSi = (v) => {
+    if (v === true || v === 1) return true
+    if (typeof v === 'string') {
+      const s = v.trim().toLowerCase()
+      return s === 'si' || s === 'sí' || s === 'true' || s === '1' || s === 'x' || s === 'yes'
+    }
+    return false
+  }
+
   let count = 0
   for (const val of Object.values(data)) {
-    if (val === true || val === 'si' || val === 'Sí' || val === 'sí' || val === true) count++
+    if (esSi(val)) count++
   }
   return count
 }

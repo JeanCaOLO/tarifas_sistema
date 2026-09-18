@@ -265,6 +265,7 @@ function EditarModal({ submission, tarifas, onClose, onSaved }) {
   const [sub, setSub] = useState(() => ({ ...submission }))
   const [rows, setRows] = useState(() => tarifas.map((t) => ({ ...t })))
   const [regionSel, setRegionSel] = useState(() => regionToArray(submission.region))
+  const [repre, setRepre] = useState(() => ({ ...(parseJson(submission.representacion) || {}) }))
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
 
@@ -272,7 +273,12 @@ function EditarModal({ submission, tarifas, onClose, onSaved }) {
     setSub({ ...submission })
     setRows(tarifas.map((t) => ({ ...t })))
     setRegionSel(regionToArray(submission.region))
+    setRepre({ ...(parseJson(submission.representacion) || {}) })
   }, [submission])
+
+  function toggleRepre(key, checked) {
+    setRepre((prev) => ({ ...prev, [key]: checked }))
+  }
 
   function setSubField(field, value) {
     setSub((prev) => ({ ...prev, [field]: value }))
@@ -314,6 +320,7 @@ function EditarModal({ submission, tarifas, onClose, onSaved }) {
         subPayload[f] = numOrNull(sub[f])
       }
       subPayload.region = regionSel
+      subPayload.representacion = repre
 
       const { error: e1 } = await supabase
         .from('rfp_submissions_r2')
@@ -390,6 +397,38 @@ function EditarModal({ submission, tarifas, onClose, onSaved }) {
             <EditRow label="Europa"><input type="number" min="0" step="1" value={sub.allocation_europa ?? ''} onChange={(e) => setSubField('allocation_europa', e.target.value)} /></EditRow>
             <EditRow label="Asia Puertos Base"><input type="number" min="0" step="1" value={sub.allocation_asia_pb ?? ''} onChange={(e) => setSubField('allocation_asia_pb', e.target.value)} /></EditRow>
             <EditRow label="Asia (restante)"><input type="number" min="0" step="1" value={sub.allocation_asia_restante ?? ''} onChange={(e) => setSubField('allocation_asia_restante', e.target.value)} /></EditRow>
+          </div>
+
+          <div className="cond-list" style={{ marginTop: 14 }}>
+            <div className="cbar" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span>Representación / Oficinas (propias)</span>
+              <span style={{ flex: 1 }} />
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => {
+                const all = { destino: true }
+                for (const p of PUERTOS_BASE_CHINA) all[`china_${p.toLowerCase()}`] = true
+                setRepre(all)
+              }}>Marcar todo</button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRepre({})}>Limpiar</button>
+            </div>
+            <EditRow label="Destino">
+              <label className="cb-label">
+                <input type="checkbox" checked={!!repre.destino} onChange={(e) => toggleRepre('destino', e.target.checked)} />
+                Oficina propia en destino
+              </label>
+            </EditRow>
+            <EditRow label="Puertos Base China">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 18px' }}>
+                {PUERTOS_BASE_CHINA.map((p) => {
+                  const key = `china_${p.toLowerCase()}`
+                  return (
+                    <label key={p} className="cb-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <input type="checkbox" checked={!!repre[key]} onChange={(e) => toggleRepre(key, e.target.checked)} />
+                      {p}
+                    </label>
+                  )
+                })}
+              </div>
+            </EditRow>
           </div>
 
           <div className="section-title" style={{ marginTop: 18 }}>Tarifas cotizadas ({rows.length})</div>

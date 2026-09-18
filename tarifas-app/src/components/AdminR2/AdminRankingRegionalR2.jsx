@@ -3,12 +3,24 @@ import { AdminContext } from '../../pages/AdminPage'
 import { calcularRankingRegionalR2 } from '../../utils/rankingR2'
 import { PAISES_MAP } from '../../constantsR2'
 import { exportarReporteRegional } from '../../utils/reporteOferente'
+import { exportarRankingRegionalPDF } from '../../utils/reporteRankingPDF'
 import ExcluirOferentes, { aplicarExclusion } from '../Admin/ExcluirOferentes'
+
+const REGIONES_ORIGEN = ['America', 'Europa', 'Asia Puertos Base', 'Asia']
 
 export default function AdminRankingRegionalR2() {
   const { respuestasR2, tarifasR2, condOpR2, oferentesExcluidos } = useContext(AdminContext)
   const [formRegion, setFormRegion] = useState('CA')
   const [campo, setCampo] = useState('tarifa_40_std')
+  const [regiones, setRegiones] = useState(() => new Set(REGIONES_ORIGEN))
+
+  function toggleRegion(reg) {
+    setRegiones((prev) => {
+      const next = new Set(prev)
+      if (next.has(reg)) next.delete(reg); else next.add(reg)
+      return next
+    })
+  }
 
   // Enriquecer respuestas R2 con datos de condiciones operativas (por oferente)
   const respuestas = (respuestasR2 || []).map((r) => {
@@ -26,7 +38,8 @@ export default function AdminRankingRegionalR2() {
   const tarifas = tarifasR2 || []
 
   const { respuestas: respFilt, tarifas: tarFilt } = aplicarExclusion(respuestas, tarifas, oferentesExcluidos)
-  const resultado = calcularRankingRegionalR2(tarFilt, respFilt, { formRegion, campo })
+  const regionesArr = [...regiones]
+  const resultado = calcularRankingRegionalR2(tarFilt, respFilt, { formRegion, campo, regionesIncluidas: regionesArr })
   const { notaFinal, paisDetalles, paisPesos, regionPesos, paisesDestino } = resultado
 
   const regLabels = { America: 'América', Europa: 'Europa', 'Asia Puertos Base': 'Asia PB', Asia: 'Asia' }
@@ -47,26 +60,25 @@ export default function AdminRankingRegionalR2() {
             <option value="tarifa_40_hc">40" HC</option>
           </select>
         </div>
-        <span className="spacer" />
-        <span className="count-note">{notaFinal.length} oferentes</span>
-      </div>
-
-      {regionPesos && (
-        <div className="kpis">
-          {Object.entries(regionPesos).map(([reg, peso]) => (
-            <div key={reg} className="kpi" style={{ borderLeftColor: reg.startsWith('Asia P') ? '#F2B33D' : '#4C6A64' }}>
-              <div className="k-label">{regLabels[reg] || reg}</div>
-              <div className="k-value" style={{ fontSize: 20 }}>{peso}%</div>
-            </div>
-          ))}
-          <div className="kpi" style={{ borderLeftColor: 'var(--teal)' }}>
-            <div className="k-label">Países destino</div>
-            <div className="k-value" style={{ fontSize: 14 }}>
-              {paisPesos && Object.entries(paisPesos).map(([p, w]) => `${PAISES_MAP[p] || p} ${w}%`).join(' · ')}
-            </div>
+        <div className="f"><label>Regiones (pesos se re-normalizan)</label>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', paddingTop: 4 }}>
+            {REGIONES_ORIGEN.map((reg) => (
+              <label key={reg} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5 }}>
+                <input type="checkbox" checked={regiones.has(reg)} onChange={() => toggleRegion(reg)} />
+                {regLabels[reg] || reg}
+              </label>
+            ))}
           </div>
         </div>
-      )}
+        <span className="spacer" />
+        <span className="count-note">{notaFinal.length} oferentes</span>
+        <button className="btn btn-sm" disabled={!notaFinal.length}
+          onClick={() => exportarRankingRegionalPDF(resultado, { etapa: '2', formRegion, campo })}>
+          📄 PDF resumen
+        </button>
+      </div>
+
+      <PesosPorPais resultado={resultado} regLabels={regLabels} />
 
       <ExcluirOferentes respuestas={respuestasR2} />
 
@@ -114,16 +126,17 @@ export default function AdminRankingRegionalR2() {
       {paisesDestino?.map((pais) => {
         const items = paisDetalles[pais] || []
         if (!items.length) return null
+        const pesosPais = (resultado.regionPesosPorPais && resultado.regionPesosPorPais[pais]) || regionPesos
         return (
           <div key={pais} className="card" style={{ marginBottom: 14 }}>
             <div style={{ padding: '10px 14px', background: 'var(--teal-dark)', color: '#fff', fontWeight: 700, fontSize: 13 }}>
-              📊 {PAISES_MAP[pais] || pais} ({pais}) — Peso: {paisPesos[pais]}%
+              📊 {PAISES_MAP[pais] || pais} ({pais}) — Peso: {paisPesos[pais]}% · Pesos región (según volumen): {Object.entries(pesosPais).map(([reg, p]) => `${regLabels[reg]} ${p}%`).join(' · ')}
             </div>
             <div className="table-scroll">
               <table className="grid">
                 <thead><tr>
                   <th>#</th><th>Oferente</th>
-                  {Object.entries(regionPesos).map(([reg, peso]) => (
+                  {Object.entries(pesosPais).map(([reg, peso]) => (
                     <th key={reg} className="th-num">{regLabels[reg]} ({peso}%)</th>
                   ))}
                   <th className="th-num" style={{ fontWeight: 800 }}>Nota País</th>
@@ -133,13 +146,13 @@ export default function AdminRankingRegionalR2() {
                     <tr key={i} style={i === 0 ? { background: 'var(--mint)' } : {}}>
                       <td style={{ fontWeight: 800, color: i < 3 ? 'var(--teal-deep)' : 'var(--muted)' }}>{i + 1}</td>
                       <td style={{ fontWeight: 600 }}>{d.oferente}</td>
-                      {Object.entries(regionPesos).map(([reg, peso]) => (
+                      {Object.entries(pesosPais).map(([reg, peso]) => (
                         <td key={reg} className="td-num num"><CeldaRegion d={d} reg={reg} peso={peso} /></td>
                       ))}
-                      <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={`NOTA PAÍS = suma de contribuciones de cada región\n${Object.entries(regionPesos).map(([reg, peso]) => `${regLabels[reg]}: score ${(d[reg] || 0).toFixed(1)} × ${peso}% = ${(d[reg + '_contrib'] ?? ((d[reg] || 0) * peso / 100)).toFixed(2)}`).join('\n')}\n= ${d.notaPais.toFixed(2)}`}>
+                      <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={`NOTA PAÍS = suma de contribuciones de cada región\n${Object.entries(pesosPais).map(([reg, peso]) => `${regLabels[reg]}: score ${(d[reg] || 0).toFixed(1)} × ${peso}% = ${(d[reg + '_contrib'] ?? ((d[reg] || 0) * peso / 100)).toFixed(2)}`).join('\n')}\n= ${d.notaPais.toFixed(2)}`}>
                         {d.notaPais.toFixed(2)}
                         <div style={{ fontSize: 10.5, fontWeight: 500, color: 'var(--muted)' }}>
-                          = {Object.entries(regionPesos).map(([reg]) => (d[reg + '_contrib'] ?? ((d[reg] || 0) * regionPesos[reg] / 100)).toFixed(2)).join(' + ')}
+                          = {Object.entries(pesosPais).map(([reg]) => (d[reg + '_contrib'] ?? ((d[reg] || 0) * pesosPais[reg] / 100)).toFixed(2)).join(' + ')}
                         </div>
                       </td>
                     </tr>
@@ -148,12 +161,53 @@ export default function AdminRankingRegionalR2() {
               </table>
             </div>
             <div style={{ padding: '8px 14px', fontSize: 11.5, color: 'var(--muted)', borderTop: '1px solid var(--line, #e5e7eb)' }}>
-              Cada celda de región muestra: <b>score</b> (★ = mejor de la región), <b>prom</b> = promedio de tarifa del oferente en esa región, <b>mejor</b> = mejor promedio de la región (obtiene score 100), y la <b>contribución ponderada</b> (score × peso). La <b>Nota País</b> es la suma de esas contribuciones. Como Asia PB pesa {regionPesos['Asia Puertos Base'] ?? '—'}%, un buen desempeño ahí puede colocar a un oferente primero aunque no lidere otras regiones.
+              Los pesos de región son <b>específicos de {PAISES_MAP[pais] || pais}</b> según su volumen real. Cada celda muestra: <b>score</b> (★ = mejor de la región), <b>prom</b>, <b>mejor</b> y la <b>contribución ponderada</b> (score × peso). La <b>Nota País</b> es la suma de esas contribuciones.
             </div>
           </div>
         )
       })}
     </section>
+  )
+}
+
+function PesosPorPais({ resultado, regLabels }) {
+  const { regionPesosPorPais, paisPesos, paisesDestino } = resultado
+  if (!regionPesosPorPais || !paisesDestino?.length) return null
+  const regs = ['America', 'Europa', 'Asia Puertos Base', 'Asia']
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div style={{ padding: '10px 14px', background: 'var(--teal-dark)', color: '#fff', fontWeight: 700, fontSize: 13 }}>
+        Distribución de pesos por país (según volumen real)
+      </div>
+      <div className="table-scroll">
+        <table className="grid">
+          <thead><tr>
+            <th>País destino</th>
+            <th className="th-num">Peso país</th>
+            {regs.map((r) => <th key={r} className="th-num">{regLabels[r] || r}</th>)}
+          </tr></thead>
+          <tbody>
+            {paisesDestino.map((p) => {
+              const pesos = regionPesosPorPais[p] || {}
+              return (
+                <tr key={p}>
+                  <td style={{ fontWeight: 600 }}>{PAISES_MAP[p] || p}</td>
+                  <td className="td-num num" style={{ fontWeight: 700 }}>{paisPesos[p]}%</td>
+                  {regs.map((r) => (
+                    <td key={r} className="td-num num" style={r === 'Asia Puertos Base' ? { color: '#B8860B', fontWeight: 700 } : {}}>
+                      {pesos[r] != null ? `${pesos[r]}%` : '—'}
+                    </td>
+                  ))}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ padding: '8px 14px', fontSize: 11.5, color: 'var(--muted)', borderTop: '1px solid var(--line, #e5e7eb)' }}>
+        Estos pesos reflejan cuánto volumen movemos por región en cada país. Se re-normalizan si filtras regiones.
+      </div>
+    </div>
   )
 }
 

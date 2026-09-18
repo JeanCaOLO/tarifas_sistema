@@ -21,13 +21,14 @@ const STORAGE_KEY = 'rfp_ranking_config_v1'
  * ----------------------------------------------------------------------------
  */
 
-// Etapa 1 — pesos de rubros (deben sumar 100). Antes: 80/5/5/5/5.
+// Etapa 1 — pesos de rubros (deben sumar 100).
+// Gastos ya no puntúa (0); su 5% se sumó a Tarifa (85). Total: 85+5+5+5 = 100.
 export const DEFAULT_E1 = {
   pesos: {
-    tarifas: 80,
+    tarifas: 85,
     dias_libres: 5,
     credito: 5,
-    gastos_destino: 5,
+    gastos_destino: 0,
     herramienta: 5
   },
   reglas: {
@@ -42,15 +43,17 @@ export const DEFAULT_E1 = {
   }
 }
 
-// Etapa 2 — pesos de rubros (deben sumar 100). Antes: 60/5/5/5/15/5/5.
+// Etapa 2 — pesos de rubros (deben sumar 100).
+// Gastos y FOB ya no puntúan (0); su 10% se sumó a Tarifa (70).
+// Total: 70+5+5+15+5 = 100.
 export const DEFAULT_E2 = {
   pesos: {
-    tarifas: 60,
+    tarifas: 70,
     dias_libres: 5,
     credito: 5,       // se divide en días + facturación al arribo
-    gastos_destino: 5,
+    gastos_destino: 0,
     allocation: 15,
-    gastos_fob: 5,
+    gastos_fob: 0,
     representacion: 5
   },
   reglas: {
@@ -65,14 +68,26 @@ export const DEFAULT_E2 = {
   }
 }
 
-// Pesos regionales (por región de origen) y por país destino — Etapa 1 y 2.
+// Pesos regionales por PAÍS destino, según la distribución real de volumen.
+// regionPesos = fallback por bloque; regionPesosPorPais = específico por país
+// (tiene prioridad en el cálculo del ranking regional). paisPesos = peso del
+// país dentro de la región (CA/VE) para la Nota Final.
+const REGION_PESOS_POR_PAIS = {
+  CR: { America: 2, Europa: 6, 'Asia Puertos Base': 82, Asia: 10 },
+  SV: { America: 0, Europa: 2, 'Asia Puertos Base': 68, Asia: 30 },
+  GT: { America: 1, Europa: 4, 'Asia Puertos Base': 84, Asia: 11 },
+  VNZ: { America: 17, Europa: 2, 'Asia Puertos Base': 64, Asia: 17 }
+}
+
 export const DEFAULT_E1_REG = {
   CA: {
     regionPesos: { America: 7, Europa: 3, 'Asia Puertos Base': 70, Asia: 20 },
+    regionPesosPorPais: { CR: { ...REGION_PESOS_POR_PAIS.CR }, SV: { ...REGION_PESOS_POR_PAIS.SV }, GT: { ...REGION_PESOS_POR_PAIS.GT } },
     paisPesos: { CR: 52, SV: 27, GT: 21 }
   },
   VE: {
     regionPesos: { America: 13, Europa: 2, 'Asia Puertos Base': 65, Asia: 20 },
+    regionPesosPorPais: { VNZ: { ...REGION_PESOS_POR_PAIS.VNZ } },
     paisPesos: { VNZ: 100 }
   }
 }
@@ -80,10 +95,12 @@ export const DEFAULT_E1_REG = {
 export const DEFAULT_E2_REG = {
   CA: {
     regionPesos: { America: 7, Europa: 3, 'Asia Puertos Base': 70, Asia: 20 },
+    regionPesosPorPais: { CR: { ...REGION_PESOS_POR_PAIS.CR }, SV: { ...REGION_PESOS_POR_PAIS.SV }, GT: { ...REGION_PESOS_POR_PAIS.GT } },
     paisPesos: { CR: 52, SV: 27, GT: 21 }
   },
   VE: {
     regionPesos: { America: 13, Europa: 2, 'Asia Puertos Base': 65, Asia: 20 },
+    regionPesosPorPais: { VNZ: { ...REGION_PESOS_POR_PAIS.VNZ } },
     paisPesos: { VNZ: 100 }
   }
 }
