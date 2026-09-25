@@ -250,141 +250,82 @@ export function calcularRankingRegional(tarifas, respuestas, { formRegion, campo
   const config = getRegionalE1()[formRegion]
   if (!config) return { notaFinal: [], paisDetalles: {}, paisPesos: {} }
 
-  // Volumen para ponderar el score por región (ahorro real en dinero).
-  const volIdx = indexarVolumen(volumenes || [])
-  const usaVolumen = (volumenes || []).length > 0
-  const divVol = Number(divisor) > 0 ? Number(divisor) : (Number(getVolumenConfig().divisor) > 0 ? Number(getVolumenConfig().divisor) : 2)
-
-  // Pesos por región, re-normalizados a 100% según las regiones incluidas.
-  // Así, al excluir Europa/América, su peso se reparte proporcionalmente entre
-  // las regiones seleccionadas y la Nota País sigue siendo comparable a 100.
-  const regionPesos = renormalizarRegionPesos(config.regionPesos, regionesIncluidas)
   const { paisPesos } = config
   const paisesDestino = Object.keys(paisPesos)
-  // Pesos de región por país (según volumen real). Si no hay, usa el del bloque.
-  const pesosDePais = (pais) => renormalizarRegionPesos(
-    (config.regionPesosPorPais && config.regionPesosPorPais[pais]) || config.regionPesos,
-    regionesIncluidas
-  )
-  // Pesos por país para exponer a la UI
-  const regionPesosPorPais = {}
-  for (const p of paisesDestino) regionPesosPorPais[p] = pesosDePais(p)
 
+  // Pesos de región por país (informativos).
+  const regionPesos = renormalizarRegionPesos(config.regionPesos, regionesIncluidas)
+  const regionPesosPorPais = {}
+  for (const p of paisesDestino) {
+    regionPesosPorPais[p] = renormalizarRegionPesos(
+      (config.regionPesosPorPais && config.regionPesosPorPais[p]) || config.regionPesos,
+      regionesIncluidas
+    )
+  }
+
+  // Filtrar cotizaciones a la región (CA/VE) y a las regiones de origen incluidas.
   const subMap = new Map()
   for (const r of respuestas) subMap.set(r.id, r)
-
-  const ratesValidas = tarifas.filter((t) => {
-    if (!paisesDestino.includes(t.pais)) return false
-    if (t[campo] === null || Number(t[campo]) <= 0) return false
+  const regInclSet = (regionesIncluidas && regionesIncluidas.length) ? new Set(regionesIncluidas) : null
+  const tarifasRegion = tarifas.filter((t) => {
     const sub = subMap.get(t.submission_id)
     if (!sub) return false
     const reg = Array.isArray(sub.region) ? sub.region : (sub.region ? [sub.region] : [])
-    return reg.includes(formRegion)
+    if (!reg.includes(formRegion)) return false
+    if (regInclSet) {
+      const ro = REGION_POR_ORIGEN.get(t.origen) || t.region
+      if (!regInclSet.has(ro)) return false
+    }
+    return true
   })
 
-  if (!ratesValidas.length) return { notaFinal: [], paisDetalles: {}, paisPesos }
+  // El puesto por país sale del RANKING NORMAL (mismo criterio de nota total).
+  const { global } = calcularRanking(tarifasRegion, respuestas, {
+    pais: '', campo, regionFiltro: '', formRegion, volumenes, divisor
+  })
+
+  const puestoPorPais = {}
+  const notaRankingPorPais = {}
+  for (const pais of paisesDestino) {
+    const delPais = global.filter((g) => g.pais === pais && g.avg_total > 0)
+      .sort((a, b) => b.avg_total - a.avg_total)
+    puestoPorPais[pais] = new Map()
+    notaRankingPorPais[pais] = new Map()
+    delPais.forEach((g, i) => {
+      const k = g.oferente.trim().toLowerCase()
+      puestoPorPais[pais].set(k, i + 1)
+      notaRankingPorPais[pais].set(k, g.avg_total)
+    })
+  }
 
   const oferentes = new Set()
-  for (const t of ratesValidas) oferentes.add((t.oferente || subMap.get(t.submission_id)?.oferente || '').trim())
+  for (const g of global) oferentes.add(g.oferente)
 
-  const paisScores = {}
   const paisDetalles = {}
-
   for (const pais of paisesDestino) {
-    const ratesPais = ratesValidas.filter((t) => t.pais === pais)
-    paisScores[pais] = {}
-    paisDetalles[pais] = []
-
-    const pesosPais = regionPesosPorPais[pais]
-    const regiones = Object.keys(pesosPais)
-    const oferScoresPorRegion = {}
-
-    for (const reg of regiones) {
-      const ratesReg = ratesPais.filter((t) => {
-        const regionOrigen = REGION_POR_ORIGEN.get(t.origen) || t.region || ''
-        if (reg === 'Asia') return regionOrigen === 'Asia'
-        if (reg === 'Asia Puertos Base') return regionOrigen === 'Asia Puertos Base'
-        return regionOrigen === reg
+    const filas = []
+    for (const g of global.filter((x) => x.pais === pais)) {
+      const k = g.oferente.trim().toLowerCase()
+      filas.push({
+        oferente: g.oferente,
+        puesto: puestoPorPais[pais].get(k) || 0,
+        notaRanking: g.avg_total,
+        rutas: g.rutas
       })
-
-      // Por oferente en la región: costo ponderado por volumen (ahorro real).
-      // costo = Σ (tarifa_ruta × volumen_puerto / divisor). Sin volumen → promedio simple.
-      const oferAgg = new Map()
-      for (const t of ratesReg) {
-        const ofer = (t.oferente || subMap.get(t.submission_id)?.oferente || '').trim()
-        if (!oferAgg.has(ofer)) oferAgg.set(ofer, { sumTarifa: 0, count: 0, costo: 0, vol: 0 })
-        const o = oferAgg.get(ofer)
-        const tarifa = Number(t[campo])
-        const vol = usaVolumen ? volumenDe(volIdx, t.pais, t.origen, 'anual') : 0
-        o.sumTarifa += tarifa
-        o.count++
-        o.costo += (tarifa * vol) / divVol
-        o.vol += vol
-      }
-
-      const metric = [...oferAgg.entries()].map(([ofer, o]) => {
-        const usaCosto = usaVolumen && o.costo > 0
-        return {
-          ofer,
-          valor: usaCosto ? o.costo : (o.count ? o.sumTarifa / o.count : 0),
-          avg: o.count ? o.sumTarifa / o.count : 0,
-          costo: o.costo, vol: o.vol, count: o.count, usaCosto
-        }
-      })
-      const candidatos = metric.filter((m) => m.valor > 0)
-      const mejorValor = candidatos.length ? Math.min(...candidatos.map((m) => m.valor)) : 0
-
-      for (const m of metric) {
-        if (!oferScoresPorRegion[m.ofer]) oferScoresPorRegion[m.ofer] = {}
-        oferScoresPorRegion[m.ofer][reg] = {
-          score: (mejorValor > 0 && m.valor > 0) ? (mejorValor / m.valor) * 100 : 0,
-          avg: m.avg, mejorAvg: candidatos.length ? Math.min(...candidatos.map((c) => c.avg)) : 0,
-          costo: m.costo, vol: m.vol, count: m.count, usaCosto: m.usaCosto
-        }
-      }
     }
-
-    for (const [ofer, regScores] of Object.entries(oferScoresPorRegion)) {
-      let notaPais = 0
-      const detalle = { oferente: ofer }
-      for (const [reg, peso] of Object.entries(pesosPais)) {
-        const info = regScores[reg] || { score: 0, avg: null, mejorAvg: null, count: 0 }
-        const score = info.score || 0
-        const contrib = score * (peso / 100)
-        notaPais += contrib
-        detalle[reg] = Math.round(score * 100) / 100
-        detalle[reg + '_contrib'] = Math.round(contrib * 100) / 100
-        detalle[reg + '_avg'] = info.avg != null ? Math.round(info.avg * 100) / 100 : null
-        detalle[reg + '_best'] = info.mejorAvg != null && info.mejorAvg > 0 ? Math.round(info.mejorAvg * 100) / 100 : null
-        detalle[reg + '_rutas'] = info.count || 0
-        detalle[reg + '_costo'] = info.costo != null ? Math.round(info.costo * 100) / 100 : null
-        detalle[reg + '_vol'] = info.vol != null ? Math.round(info.vol * 100) / 100 : null
-        detalle[reg + '_usaCosto'] = !!info.usaCosto
-      }
-      detalle.notaPais = Math.round(notaPais * 100) / 100
-      paisScores[pais][ofer] = detalle
-      paisDetalles[pais].push(detalle)
-    }
-    paisDetalles[pais].sort((a, b) => b.notaPais - a.notaPais)
+    filas.sort((a, b) => (a.puesto || 999) - (b.puesto || 999))
+    paisDetalles[pais] = filas
   }
 
-  // Puesto de cada oferente por país (1 = mejor notaPais, solo con cotización).
-  const puestoPorPais = {}
-  for (const pais of paisesDestino) {
-    puestoPorPais[pais] = new Map()
-    const ordenados = (paisDetalles[pais] || []).filter((d) => d.notaPais > 0)
-    ordenados.forEach((d, i) => puestoPorPais[pais].set(d.oferente, i + 1))
-  }
-
-  // NOTA FINAL por POSICIÓN (Opción A): puntos por puesto ponderados por país.
   const notaFinal = []
   for (const ofer of oferentes) {
+    const k = ofer.trim().toLowerCase()
     let totalPonderado = 0
     const row = { oferente: ofer }
     for (const [pais, peso] of Object.entries(paisPesos)) {
-      const puesto = puestoPorPais[pais]?.get(ofer) || 0
+      const puesto = puestoPorPais[pais]?.get(k) || 0
       const puntos = puntosPorPuesto(puesto)
-      row[pais] = Math.round((paisScores[pais]?.[ofer]?.notaPais || 0) * 100) / 100
+      row[pais] = Math.round((notaRankingPorPais[pais]?.get(k) || 0) * 100) / 100
       row[pais + '_puesto'] = puesto
       row[pais + '_puntos'] = puntos
       totalPonderado += puntos * (peso / 100)

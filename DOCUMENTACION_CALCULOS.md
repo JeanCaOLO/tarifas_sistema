@@ -148,59 +148,48 @@ El ranking se ordena por `avg_total` descendente.
 
 ## 3. RANKING REGIONAL (Etapa 1 y 2)
 
-Evalúa a los oferentes por **país destino** y por **región de origen** (América, Europa,
-Asia PB, Asia). El score de cada región se calcula por **COSTO PONDERADO POR VOLUMEN**
-(ahorro real en dinero), igual que el comparativo y el ranking normal.
+El ranking regional **ya no recalcula por su cuenta**. Toma el resultado del **Ranking
+normal** por país (mismo criterio de nota total, costo ponderado por volumen) y le aplica
+la lógica de **posición ponderada por país**. Así, el puesto de un oferente en un país es
+SIEMPRE el mismo en el Ranking y en el Regional.
 
-### 3.1 Score por región (ponderado por volumen)
-Para cada oferente y región dentro de un país destino:
-```
-costo_oferente = Σ (tarifa_ruta × volumen_del_puerto / divisor) en esa región
-mejor_costo    = menor costo entre los oferentes de esa región
-score_región   = (mejor_costo ÷ costo_oferente) × 100
-```
-El oferente con el **menor costo real** (mayor ahorro) obtiene 100; el resto
-proporcionalmente menos. Así una ruta de alto volumen (ej. Ningbo) pesa mucho más que
-una de bajo volumen, buscando el ahorro real en dinero.
+### 3.1 Puesto por país (viene del Ranking normal)
+1. Se filtran las cotizaciones a la región seleccionada (CA/VE) y a las regiones de
+   origen incluidas (checkboxes).
+2. Se ejecuta el **Ranking normal** sobre esas cotizaciones → se obtiene el `global`
+   (una fila por oferente|país con su `nota_total`).
+3. Dentro de cada país, se ordena por `nota_total` (mayor = mejor) y se asigna el
+   **puesto**: #1 = mejor nota, #2, #3, etc.
 
-> Fallback: si NO hay volumen cargado (o el puerto no tiene volumen), se usa el
-> **promedio simple de tarifa** en la región: `score = (mejor promedio ÷ promedio) × 100`.
-> La celda del detalle indica si el score se calculó por costo o por tarifa promedio.
-
-### 3.2 Nota País
-```
-Nota País = Σ score_región × (peso_región_del_país / 100)
-```
-Los **pesos de región son específicos por país**, según la distribución real de volumen
-(ver sección 5). Se re-normalizan a 100% si se filtran regiones.
-
-### 3.3 Nota Final (por POSICIÓN — Opción A)
-La Nota Final ya **no promedia los scores de costo** (estaban comprimidos arriba de 90 y
-el puesto se diluía). Ahora se calcula por **puesto por país**:
-
-1. En cada país, se ordena a los oferentes por su Nota País (costo ponderado). El de
-   menor costo es el #1, luego #2, #3, etc.
-2. Cada puesto se convierte a puntos:
+### 3.2 Puntos por posición
+Cada puesto se convierte a puntos:
 ```
 puntos = max(0, 100 - (puesto - 1) × 20)
 → 1º = 100 · 2º = 80 · 3º = 60 · 4º = 40 · 5º = 20 · 6º+ = 0
 ```
-3. La Nota Final pondera esos puntos por el peso del país:
+
+### 3.3 Nota Final
+La Nota Final pondera esos puntos por el peso del país:
 ```
 Nota Final = Σ puntos_puesto_país × (peso_país / 100)
 ```
 Pesos por país (CA): CR 52%, SV 27%, GT 21%. (VE: VNZ 100%).
 
-**Por qué:** así ganar un país que pesa mucho (ej. CR 52%) mueve fuertemente la nota,
-y la diferencia entre quedar 1º vs 4º es clara (100 vs 40), no marginal como antes.
+**Por qué así:**
+- El **dinero real manda**: el puesto se define por la nota total del Ranking (costo
+  ponderado por volumen), no por un recálculo aparte.
+- **Consistencia total**: si un oferente es #1 en Guatemala en el Ranking, también es #1
+  en Guatemala en el Regional. Ya no hay discrepancias entre ambas vistas.
+- **La posición se ve reflejada**: ganar un país con más peso (ej. CR 52%) mueve
+  fuertemente la Nota Final (100 pts vs 40 del 4º), no de forma marginal.
 
-**Nota:** el score de costo por país (sección 3.1-3.2) se sigue calculando y se muestra
-como dato informativo en el tooltip; ya no es lo que define la Nota Final. El puesto se
-determina por ese costo real ponderado por volumen (dinero real primero).
+**Nota:** los pesos de región por país (sección 5) ya NO afectan el puesto (que viene del
+Ranking). Se mantienen solo como información visual del volumen por región. El detalle por
+país muestra el puesto, la nota del Ranking y los puntos por posición.
 
 > Consideración: al ser por puesto, un #1 que gana por mucho dinero y un #1 que gana por
-> poco valen igual (100). El monto del ahorro se ve en el Comparativo Volumen y en el
-> tooltip (score de costo). El allocation se puede usar como criterio de desempate manual.
+> poco valen igual (100). El monto del ahorro se ve en el Comparativo Volumen. El
+> allocation puede usarse como desempate manual.
 
 ---
 
@@ -257,13 +246,20 @@ de alto volumen (ej. Ningbo, 722 TEUs), su costo total en esas regiones es el me
 obtiene el mejor score. Resultado: Servica sale primero en el regional igual que en el
 comparativo y el ranking, porque las tres miden el ahorro real.
 
-**Diferencia que puede quedar:** el regional sigue agrupando por **región de origen** y
-ponderando por los **pesos de región por país** (sección 5) antes de sumar la Nota Final
-por país. El comparativo/ranking no aplican esos pesos regionales. Por eso el ORDEN puede
-variar levemente si los pesos por región cambian mucho el balance, pero la métrica base
-(costo ponderado por volumen) ya es la misma en las tres.
+**Puesto por país: ahora SIEMPRE coincide.** El ranking regional toma el puesto por país
+directamente del Ranking normal (costo total ponderado por volumen). Por eso, si un
+oferente es #1 en Guatemala en el Ranking, también es #1 en Guatemala en el Regional.
+La única diferencia entre ambas vistas es el **orden final global**:
+- El **Ranking** ordena por nota total del oferente (mezcla todos sus países).
+- El **Regional** ordena por Nota Final = puntos de posición × peso de cada país. Un
+  oferente que gana países de mayor peso (ej. CR 52%) sube más, aunque su costo total
+  absoluto no sea el menor.
 
-> Fallback: si no hay volumen cargado, el regional vuelve al promedio simple de tarifa.
+Esto es intencional: el Regional mide "qué tan bien se posiciona en los países que más
+me importan", usando como base el mismo dinero real del Ranking.
+
+> Fallback: si no hay volumen cargado, el Ranking (y por tanto el Regional) usa la tarifa
+> cruda en lugar del costo ponderado.
 
 ---
 

@@ -131,42 +131,34 @@ export default function AdminRankingRegionalR2() {
       {paisesDestino?.map((pais) => {
         const items = paisDetalles[pais] || []
         if (!items.length) return null
-        const pesosPais = (resultado.regionPesosPorPais && resultado.regionPesosPorPais[pais]) || regionPesos
         return (
           <div key={pais} className="card" style={{ marginBottom: 14 }}>
             <div style={{ padding: '10px 14px', background: 'var(--teal-dark)', color: '#fff', fontWeight: 700, fontSize: 13 }}>
-              📊 {PAISES_MAP[pais] || pais} ({pais}) — Peso: {paisPesos[pais]}% · Pesos región (según volumen): {Object.entries(pesosPais).map(([reg, p]) => `${regLabels[reg]} ${p}%`).join(' · ')}
+              📊 {PAISES_MAP[pais] || pais} ({pais}) — Peso: {paisPesos[pais]}% · Posición según el Ranking R2
             </div>
             <div className="table-scroll">
               <table className="grid">
                 <thead><tr>
-                  <th>#</th><th>Oferente</th>
-                  {Object.entries(pesosPais).map(([reg, peso]) => (
-                    <th key={reg} className="th-num">{regLabels[reg]} ({peso}%)</th>
-                  ))}
-                  <th className="th-num" style={{ fontWeight: 800 }}>Nota País</th>
+                  <th>Puesto</th><th>Oferente</th>
+                  <th className="th-num">Nota Ranking</th>
+                  <th className="th-num">Puntos por posición</th>
+                  <th className="th-num">Rutas</th>
                 </tr></thead>
                 <tbody>
                   {items.map((d, i) => (
                     <tr key={i} style={i === 0 ? { background: 'var(--mint)' } : {}}>
-                      <td style={{ fontWeight: 800, color: i < 3 ? 'var(--teal-deep)' : 'var(--muted)' }}>{i + 1}</td>
+                      <td style={{ fontWeight: 800, color: i < 3 ? 'var(--teal-deep)' : 'var(--muted)' }}>{medalla(d.puesto)}{d.puesto || '—'}</td>
                       <td style={{ fontWeight: 600 }}>{d.oferente}</td>
-                      {Object.entries(pesosPais).map(([reg, peso]) => (
-                        <td key={reg} className="td-num num"><CeldaRegion d={d} reg={reg} peso={peso} /></td>
-                      ))}
-                      <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={`NOTA PAÍS = suma de contribuciones de cada región\n${Object.entries(pesosPais).map(([reg, peso]) => `${regLabels[reg]}: score ${(d[reg] || 0).toFixed(1)} × ${peso}% = ${(d[reg + '_contrib'] ?? ((d[reg] || 0) * peso / 100)).toFixed(2)}`).join('\n')}\n= ${d.notaPais.toFixed(2)}`}>
-                        {d.notaPais.toFixed(2)}
-                        <div style={{ fontSize: 10.5, fontWeight: 500, color: 'var(--muted)' }}>
-                          = {Object.entries(pesosPais).map(([reg]) => (d[reg + '_contrib'] ?? ((d[reg] || 0) * pesosPais[reg] / 100)).toFixed(2)).join(' + ')}
-                        </div>
-                      </td>
+                      <td className="td-num num" title="Nota total de este oferente en el Ranking R2 (mismo criterio, costo ponderado por volumen)">{(d.notaRanking || 0).toFixed(2)}</td>
+                      <td className="td-num num" style={{ fontWeight: 700 }}>{puntosPuesto(d.puesto)}</td>
+                      <td className="td-num num">{d.rutas}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
             <div style={{ padding: '8px 14px', fontSize: 11.5, color: 'var(--muted)', borderTop: '1px solid var(--line, #e5e7eb)' }}>
-              Los pesos de región son <b>específicos de {PAISES_MAP[pais] || pais}</b> según su volumen real. Cada celda muestra: <b>score</b> (★ = mejor de la región), <b>prom</b>, <b>mejor</b> y la <b>contribución ponderada</b> (score × peso). La <b>Nota País</b> es la suma de esas contribuciones.
+              El puesto es el mismo del <b>Ranking R2</b> filtrado a este país (costo ponderado por volumen). Puntos: 1º=100, 2º=80, 3º=60, 4º=40, 5º=20.
             </div>
           </div>
         )
@@ -177,6 +169,11 @@ export default function AdminRankingRegionalR2() {
 
 function medalla(puesto) {
   return puesto === 1 ? '🥇 ' : puesto === 2 ? '🥈 ' : puesto === 3 ? '🥉 ' : ''
+}
+
+function puntosPuesto(puesto) {
+  if (!puesto || puesto < 1) return 0
+  return Math.max(0, 100 - (puesto - 1) * 20)
 }
 
 function PesosPorPais({ resultado, regLabels }) {
