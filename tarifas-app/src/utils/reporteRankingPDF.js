@@ -135,14 +135,18 @@ export function exportarRankingRegionalPDF(resultado, meta) {
   })
   y = doc.lastAutoTable.finalY + 18
 
-  // --- Nota final ---
-  y = tituloSeccion(doc, 'Nota Final por Oferente', y)
+  // --- Nota final (por posición) ---
+  y = tituloSeccion(doc, 'Nota Final por Oferente (por posicion)', y)
   autoTable(doc, {
     startY: y + 4,
-    head: [['#', 'Oferente', ...(paisesDestino || []).map((p) => `${nombrePais(p)} (${paisPesos[p]}%)`), 'Nota Final']],
+    head: [['#', 'Oferente', ...(paisesDestino || []).map((p) => `${nombrePais(p)} puesto (${paisPesos[p]}%)`), 'Nota Final']],
     body: notaFinal.map((row, i) => [
       i + 1, row.oferente,
-      ...(paisesDestino || []).map((p) => (row[p] ?? 0).toFixed(2)),
+      ...(paisesDestino || []).map((p) => {
+        const puesto = row[p + '_puesto'] || 0
+        const puntos = row[p + '_puntos'] ?? 0
+        return puesto ? `${puesto} (${puntos} pts)` : '-'
+      }),
       row.notaFinal.toFixed(2)
     ]),
     styles: { fontSize: 8.5, cellPadding: 3 },

@@ -174,11 +174,33 @@ Nota País = Σ score_región × (peso_región_del_país / 100)
 Los **pesos de región son específicos por país**, según la distribución real de volumen
 (ver sección 5). Se re-normalizan a 100% si se filtran regiones.
 
-### 3.3 Nota Final
+### 3.3 Nota Final (por POSICIÓN — Opción A)
+La Nota Final ya **no promedia los scores de costo** (estaban comprimidos arriba de 90 y
+el puesto se diluía). Ahora se calcula por **puesto por país**:
+
+1. En cada país, se ordena a los oferentes por su Nota País (costo ponderado). El de
+   menor costo es el #1, luego #2, #3, etc.
+2. Cada puesto se convierte a puntos:
 ```
-Nota Final = Σ Nota_País × (peso_país / 100)
+puntos = max(0, 100 - (puesto - 1) × 20)
+→ 1º = 100 · 2º = 80 · 3º = 60 · 4º = 40 · 5º = 20 · 6º+ = 0
+```
+3. La Nota Final pondera esos puntos por el peso del país:
+```
+Nota Final = Σ puntos_puesto_país × (peso_país / 100)
 ```
 Pesos por país (CA): CR 52%, SV 27%, GT 21%. (VE: VNZ 100%).
+
+**Por qué:** así ganar un país que pesa mucho (ej. CR 52%) mueve fuertemente la nota,
+y la diferencia entre quedar 1º vs 4º es clara (100 vs 40), no marginal como antes.
+
+**Nota:** el score de costo por país (sección 3.1-3.2) se sigue calculando y se muestra
+como dato informativo en el tooltip; ya no es lo que define la Nota Final. El puesto se
+determina por ese costo real ponderado por volumen (dinero real primero).
+
+> Consideración: al ser por puesto, un #1 que gana por mucho dinero y un #1 que gana por
+> poco valen igual (100). El monto del ahorro se ve en el Comparativo Volumen y en el
+> tooltip (score de costo). El allocation se puede usar como criterio de desempate manual.
 
 ---
 

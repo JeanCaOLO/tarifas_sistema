@@ -67,7 +67,10 @@ export default function AdminRankingRegional() {
 
       <ReglasRankingRegional regionPesos={regionPesos} paisPesos={paisPesos} regLabels={regLabels} />
 
-      <div className="section-title">Nota Final por Oferente</div>
+      <div className="section-title">Nota Final por Oferente (por posición)</div>
+      <div className="card" style={{ padding: '8px 14px', marginBottom: 8, fontSize: 11.5, color: 'var(--muted)' }}>
+        La Nota Final se calcula por <b>puesto por país</b>: 1º = 100 pts, 2º = 80, 3º = 60, 4º = 40, 5º = 20…, ponderado por el peso de cada país. Así, ganar un país con más peso mueve fuertemente la nota. El score de costo queda como dato informativo en el tooltip.
+      </div>
       <div className="card" style={{ marginBottom: 22 }}>
         <div className="table-scroll" style={{ maxHeight: 450 }}>
           <table className="grid">
@@ -84,16 +87,20 @@ export default function AdminRankingRegional() {
                     {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''} {i + 1}
                   </td>
                   <td style={{ fontWeight: 600 }}>{row.oferente}</td>
-                  {paisesDestino?.map((p) => (
-                    <td key={p} className="td-num num" title={`Nota País de ${PAISES_MAP[p] || p}: ${(row[p] || 0).toFixed(2)}\nPeso del país en la región: ${paisPesos[p]}%\nContribución = ${(row[p] || 0).toFixed(2)} × ${paisPesos[p]}% = ${((row[p] || 0) * paisPesos[p] / 100).toFixed(2)}`}>
-                      {row[p]?.toFixed(2) || '—'}
-                      <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>× {paisPesos[p]}% = <b>{((row[p] || 0) * paisPesos[p] / 100).toFixed(2)}</b></div>
-                    </td>
-                  ))}
-                  <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={`NOTA FINAL = suma de (Nota País × peso del país)\n= ${paisesDestino?.map((p) => `${(row[p] || 0).toFixed(2)}×${paisPesos[p]}%`).join(' + ')}\n= ${paisesDestino?.map((p) => ((row[p] || 0) * paisPesos[p] / 100).toFixed(2)).join(' + ')}\n= ${row.notaFinal.toFixed(2)}`}>
+                  {paisesDestino?.map((p) => {
+                    const puesto = row[p + '_puesto'] || 0
+                    const puntos = row[p + '_puntos'] ?? 0
+                    return (
+                      <td key={p} className="td-num num" title={`Puesto en ${PAISES_MAP[p] || p}: ${puesto || '—'}\nPuntos por posición: ${puntos} (1º=100, 2º=80, 3º=60, 4º=40, 5º=20)\nPeso del país: ${paisPesos[p]}%\nContribución = ${puntos} × ${paisPesos[p]}% = ${(puntos * paisPesos[p] / 100).toFixed(2)}\n\n(Score de costo, informativo: ${(row[p] || 0).toFixed(2)})`}>
+                        <span style={{ fontWeight: 700 }}>{medalla(puesto)}{puesto || '—'}</span>
+                        <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>{puntos} pts × {paisPesos[p]}% = <b>{(puntos * paisPesos[p] / 100).toFixed(2)}</b></div>
+                      </td>
+                    )
+                  })}
+                  <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={`NOTA FINAL = suma de (puntos por puesto × peso del país)\n${paisesDestino?.map((p) => `${PAISES_MAP[p] || p}: puesto ${row[p + '_puesto'] || '—'} = ${row[p + '_puntos'] ?? 0} pts × ${paisPesos[p]}% = ${((row[p + '_puntos'] ?? 0) * paisPesos[p] / 100).toFixed(2)}`).join('\n')}\n= ${row.notaFinal.toFixed(2)}`}>
                     {row.notaFinal.toFixed(2)}
                     <div style={{ fontSize: 10.5, fontWeight: 500, color: 'var(--muted)' }}>
-                      = {paisesDestino?.map((p) => ((row[p] || 0) * paisPesos[p] / 100).toFixed(2)).join(' + ')}
+                      = {paisesDestino?.map((p) => ((row[p + '_puntos'] ?? 0) * paisPesos[p] / 100).toFixed(2)).join(' + ')}
                     </div>
                   </td>
                   <td><button className="btn btn-ghost btn-sm" title="Descargar reporte regional de este oferente con sus regiones más bajas" onClick={() => exportarReporteRegional(row.oferente, resultado, '1', formRegion)}>📄 Descargar</button></td>
@@ -151,6 +158,10 @@ export default function AdminRankingRegional() {
       })}
     </section>
   )
+}
+
+function medalla(puesto) {
+  return puesto === 1 ? '🥇 ' : puesto === 2 ? '🥈 ' : puesto === 3 ? '🥉 ' : ''
 }
 
 function PesosPorPais({ resultado, regLabels }) {

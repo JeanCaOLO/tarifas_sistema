@@ -32,6 +32,15 @@ function renormalizarRegionPesos(regionPesos, incluidas) {
 }
 
 /**
+ * Puntos por posición (Opción A): 1º=100, 2º=80, 3º=60, 4º=40, 5º=20, ...
+ * Fórmula: max(0, 100 - (puesto-1) × 20). Puesto 0 (sin cotización) = 0.
+ */
+function puntosPorPuesto(puesto) {
+  if (!puesto || puesto < 1) return 0
+  return Math.max(0, 100 - (puesto - 1) * 20)
+}
+
+/**
  * Ranking 1: Calcula puntaje por oferente/ruta
  * Pesos y reglas configurables (ver rankingConfig). Por defecto:
  * 80% tarifa + 5% días libres + 5% crédito + 5% gastos + 5% herramienta
@@ -359,14 +368,26 @@ export function calcularRankingRegional(tarifas, respuestas, { formRegion, campo
     paisDetalles[pais].sort((a, b) => b.notaPais - a.notaPais)
   }
 
+  // Puesto de cada oferente por país (1 = mejor notaPais, solo con cotización).
+  const puestoPorPais = {}
+  for (const pais of paisesDestino) {
+    puestoPorPais[pais] = new Map()
+    const ordenados = (paisDetalles[pais] || []).filter((d) => d.notaPais > 0)
+    ordenados.forEach((d, i) => puestoPorPais[pais].set(d.oferente, i + 1))
+  }
+
+  // NOTA FINAL por POSICIÓN (Opción A): puntos por puesto ponderados por país.
   const notaFinal = []
   for (const ofer of oferentes) {
     let totalPonderado = 0
     const row = { oferente: ofer }
     for (const [pais, peso] of Object.entries(paisPesos)) {
-      const score = paisScores[pais]?.[ofer]?.notaPais || 0
-      row[pais] = Math.round(score * 100) / 100
-      totalPonderado += score * (peso / 100)
+      const puesto = puestoPorPais[pais]?.get(ofer) || 0
+      const puntos = puntosPorPuesto(puesto)
+      row[pais] = Math.round((paisScores[pais]?.[ofer]?.notaPais || 0) * 100) / 100
+      row[pais + '_puesto'] = puesto
+      row[pais + '_puntos'] = puntos
+      totalPonderado += puntos * (peso / 100)
     }
     row.notaFinal = Math.round(totalPonderado * 100) / 100
     notaFinal.push(row)
