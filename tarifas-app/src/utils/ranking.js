@@ -237,9 +237,14 @@ export function calcularRanking(tarifas, respuestas, { pais, campo, regionFiltro
 /**
  * Ranking 2: Regional (CA/VE)
  */
-export function calcularRankingRegional(tarifas, respuestas, { formRegion, campo, regionesIncluidas }) {
+export function calcularRankingRegional(tarifas, respuestas, { formRegion, campo, regionesIncluidas, volumenes, divisor }) {
   const config = getRegionalE1()[formRegion]
   if (!config) return { notaFinal: [], paisDetalles: {}, paisPesos: {} }
+
+  // Volumen para ponderar el score por región (ahorro real en dinero).
+  const volIdx = indexarVolumen(volumenes || [])
+  const usaVolumen = (volumenes || []).length > 0
+  const divVol = Number(divisor) > 0 ? Number(divisor) : (Number(getVolumenConfig().divisor) > 0 ? Number(getVolumenConfig().divisor) : 2)
 
   // Pesos por región, re-normalizados a 100% según las regiones incluidas.
   // Así, al excluir Europa/América, su peso se reparte proporcionalmente entre
@@ -293,23 +298,39 @@ export function calcularRankingRegional(tarifas, respuestas, { formRegion, campo
         return regionOrigen === reg
       })
 
-      const oferAvg = new Map()
+      // Por oferente en la región: costo ponderado por volumen (ahorro real).
+      // costo = Σ (tarifa_ruta × volumen_puerto / divisor). Sin volumen → promedio simple.
+      const oferAgg = new Map()
       for (const t of ratesReg) {
         const ofer = (t.oferente || subMap.get(t.submission_id)?.oferente || '').trim()
-        if (!oferAvg.has(ofer)) oferAvg.set(ofer, { sum: 0, count: 0 })
-        const o = oferAvg.get(ofer)
-        o.sum += Number(t[campo])
+        if (!oferAgg.has(ofer)) oferAgg.set(ofer, { sumTarifa: 0, count: 0, costo: 0, vol: 0 })
+        const o = oferAgg.get(ofer)
+        const tarifa = Number(t[campo])
+        const vol = usaVolumen ? volumenDe(volIdx, t.pais, t.origen, 'anual') : 0
+        o.sumTarifa += tarifa
         o.count++
+        o.costo += (tarifa * vol) / divVol
+        o.vol += vol
       }
 
-      const avgs = [...oferAvg.entries()].map(([ofer, o]) => ({ ofer, avg: o.sum / o.count, count: o.count }))
-      const mejorAvg = avgs.length ? Math.min(...avgs.map((a) => a.avg)) : 0
+      const metric = [...oferAgg.entries()].map(([ofer, o]) => {
+        const usaCosto = usaVolumen && o.costo > 0
+        return {
+          ofer,
+          valor: usaCosto ? o.costo : (o.count ? o.sumTarifa / o.count : 0),
+          avg: o.count ? o.sumTarifa / o.count : 0,
+          costo: o.costo, vol: o.vol, count: o.count, usaCosto
+        }
+      })
+      const candidatos = metric.filter((m) => m.valor > 0)
+      const mejorValor = candidatos.length ? Math.min(...candidatos.map((m) => m.valor)) : 0
 
-      for (const { ofer, avg, count } of avgs) {
-        if (!oferScoresPorRegion[ofer]) oferScoresPorRegion[ofer] = {}
-        oferScoresPorRegion[ofer][reg] = {
-          score: mejorAvg > 0 ? (mejorAvg / avg) * 100 : 0,
-          avg, mejorAvg, count,
+      for (const m of metric) {
+        if (!oferScoresPorRegion[m.ofer]) oferScoresPorRegion[m.ofer] = {}
+        oferScoresPorRegion[m.ofer][reg] = {
+          score: (mejorValor > 0 && m.valor > 0) ? (mejorValor / m.valor) * 100 : 0,
+          avg: m.avg, mejorAvg: candidatos.length ? Math.min(...candidatos.map((c) => c.avg)) : 0,
+          costo: m.costo, vol: m.vol, count: m.count, usaCosto: m.usaCosto
         }
       }
     }
@@ -327,6 +348,9 @@ export function calcularRankingRegional(tarifas, respuestas, { formRegion, campo
         detalle[reg + '_avg'] = info.avg != null ? Math.round(info.avg * 100) / 100 : null
         detalle[reg + '_best'] = info.mejorAvg != null && info.mejorAvg > 0 ? Math.round(info.mejorAvg * 100) / 100 : null
         detalle[reg + '_rutas'] = info.count || 0
+        detalle[reg + '_costo'] = info.costo != null ? Math.round(info.costo * 100) / 100 : null
+        detalle[reg + '_vol'] = info.vol != null ? Math.round(info.vol * 100) / 100 : null
+        detalle[reg + '_usaCosto'] = !!info.usaCosto
       }
       detalle.notaPais = Math.round(notaPais * 100) / 100
       paisScores[pais][ofer] = detalle

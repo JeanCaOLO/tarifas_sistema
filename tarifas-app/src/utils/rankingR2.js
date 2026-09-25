@@ -316,9 +316,14 @@ export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFilt
  * Ranking Regional Etapa 2 (CA/VE)
  * Misma lógica que E1 pero sobre datos de ronda 2
  */
-export function calcularRankingRegionalR2(tarifas, respuestas, { formRegion, campo, regionesIncluidas }) {
+export function calcularRankingRegionalR2(tarifas, respuestas, { formRegion, campo, regionesIncluidas, volumenes, divisor }) {
   const config = getRegionalE2()[formRegion]
   if (!config) return { notaFinal: [], paisDetalles: {}, paisPesos: {}, regionPesos: {}, paisesDestino: [] }
+
+  // Volumen para ponderar el score por región (ahorro real en dinero).
+  const volIdx = indexarVolumen(volumenes || [])
+  const usaVolumen = (volumenes || []).length > 0
+  const divVol = Number(divisor) > 0 ? Number(divisor) : (Number(getVolumenConfig().divisor) > 0 ? Number(getVolumenConfig().divisor) : 2)
 
   // Pesos por región re-normalizados a 100% según las regiones incluidas.
   const regionPesos = renormalizarRegionPesos(config.regionPesos, regionesIncluidas)
@@ -369,23 +374,45 @@ export function calcularRankingRegionalR2(tarifas, respuestas, { formRegion, cam
         return regionOrigen === reg
       })
 
-      const oferAvg = new Map()
+      // Por oferente en la región: costo ponderado por volumen (ahorro real).
+      // costo = Σ (tarifa_ruta × volumen_puerto / divisor). Si no hay volumen,
+      // se usa el promedio simple de tarifa (comportamiento anterior).
+      const oferAgg = new Map()
       for (const t of ratesReg) {
         const ofer = (t.oferente || subMap.get(t.submission_id)?.oferente || '').trim()
-        if (!oferAvg.has(ofer)) oferAvg.set(ofer, { sum: 0, count: 0 })
-        const o = oferAvg.get(ofer)
-        o.sum += Number(t[campo])
+        if (!oferAgg.has(ofer)) oferAgg.set(ofer, { sumTarifa: 0, count: 0, costo: 0, vol: 0 })
+        const o = oferAgg.get(ofer)
+        const tarifa = Number(t[campo])
+        const vol = usaVolumen ? volumenDe(volIdx, t.pais, t.origen, 'anual') : 0
+        o.sumTarifa += tarifa
         o.count++
+        o.costo += (tarifa * vol) / divVol
+        o.vol += vol
       }
 
-      const avgs = [...oferAvg.entries()].map(([ofer, o]) => ({ ofer, avg: o.sum / o.count, count: o.count }))
-      const mejorAvg = avgs.length ? Math.min(...avgs.map((a) => a.avg)) : 0
+      const metric = [...oferAgg.entries()].map(([ofer, o]) => {
+        // Métrica para comparar: costo ponderado si hay volumen; si no, promedio de tarifa.
+        const usaCosto = usaVolumen && o.costo > 0
+        return {
+          ofer,
+          valor: usaCosto ? o.costo : (o.count ? o.sumTarifa / o.count : 0),
+          avg: o.count ? o.sumTarifa / o.count : 0, // promedio de tarifa (informativo)
+          costo: o.costo,
+          vol: o.vol,
+          count: o.count,
+          usaCosto
+        }
+      })
+      // El "mejor" es el de menor métrica (menor costo, o menor tarifa promedio)
+      const candidatos = metric.filter((m) => m.valor > 0)
+      const mejorValor = candidatos.length ? Math.min(...candidatos.map((m) => m.valor)) : 0
 
-      for (const { ofer, avg, count } of avgs) {
-        if (!oferScoresPorRegion[ofer]) oferScoresPorRegion[ofer] = {}
-        oferScoresPorRegion[ofer][reg] = {
-          score: mejorAvg > 0 ? (mejorAvg / avg) * 100 : 0,
-          avg, mejorAvg, count,
+      for (const m of metric) {
+        if (!oferScoresPorRegion[m.ofer]) oferScoresPorRegion[m.ofer] = {}
+        oferScoresPorRegion[m.ofer][reg] = {
+          score: (mejorValor > 0 && m.valor > 0) ? (mejorValor / m.valor) * 100 : 0,
+          avg: m.avg, mejorAvg: candidatos.length ? Math.min(...candidatos.map((c) => c.avg)) : 0,
+          costo: m.costo, vol: m.vol, count: m.count, usaCosto: m.usaCosto
         }
       }
     }
@@ -403,6 +430,9 @@ export function calcularRankingRegionalR2(tarifas, respuestas, { formRegion, cam
         detalle[reg + '_avg'] = info.avg != null ? Math.round(info.avg * 100) / 100 : null
         detalle[reg + '_best'] = info.mejorAvg != null && info.mejorAvg > 0 ? Math.round(info.mejorAvg * 100) / 100 : null
         detalle[reg + '_rutas'] = info.count || 0
+        detalle[reg + '_costo'] = info.costo != null ? Math.round(info.costo * 100) / 100 : null
+        detalle[reg + '_vol'] = info.vol != null ? Math.round(info.vol * 100) / 100 : null
+        detalle[reg + '_usaCosto'] = !!info.usaCosto
       }
       detalle.notaPais = Math.round(notaPais * 100) / 100
       paisScores[pais][ofer] = detalle

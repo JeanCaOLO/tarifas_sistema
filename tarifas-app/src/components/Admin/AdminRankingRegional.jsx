@@ -2,13 +2,14 @@ import { useState, useContext } from 'react'
 import { AdminContext } from '../../pages/AdminPage'
 import { calcularRankingRegional } from '../../utils/ranking'
 import { PAISES_MAP } from '../../constants'
+import { fmtMoney } from '../../utils/format'
 import { exportarReporteRegional } from '../../utils/reporteOferente'
 import { exportarRankingRegionalPDF } from '../../utils/reporteRankingPDF'
 import FiltroRegiones, { REGIONES_ORIGEN } from './FiltroRegiones'
 import ExcluirOferentes, { aplicarExclusion } from './ExcluirOferentes'
 
 export default function AdminRankingRegional() {
-  const { respuestas, tarifas, oferentesExcluidos } = useContext(AdminContext)
+  const { respuestas, tarifas, oferentesExcluidos, volumenes } = useContext(AdminContext)
   const [formRegion, setFormRegion] = useState('CA')
   const [campo, setCampo] = useState('tarifa_40_std')
   const [regiones, setRegiones] = useState(() => new Set(REGIONES_ORIGEN))
@@ -25,7 +26,7 @@ export default function AdminRankingRegional() {
 
   const { respuestas: respFilt, tarifas: tarFilt } = aplicarExclusion(respuestas, tarifas, oferentesExcluidos)
   const regionesArr = [...regiones]
-  const resultado = calcularRankingRegional(tarFilt, respFilt, { formRegion, campo, regionesIncluidas: regionesArr })
+  const resultado = calcularRankingRegional(tarFilt, respFilt, { formRegion, campo, regionesIncluidas: regionesArr, volumenes })
   const { notaFinal, paisDetalles, paisPesos, regionPesos, paisesDestino } = resultado
 
   return (
@@ -196,21 +197,25 @@ function PesosPorPais({ resultado, regLabels }) {
 function CeldaRegion({ d, reg, peso }) {
   const score = d[reg] || 0
   const avg = d[reg + '_avg']
-  const best = d[reg + '_best']
   const rutas = d[reg + '_rutas'] || 0
+  const costo = d[reg + '_costo']
+  const usaCosto = d[reg + '_usaCosto']
   const contrib = d[reg + '_contrib'] ?? (score * peso / 100)
-  const esMejor = avg != null && best != null && Math.abs(avg - best) < 0.01
+  const esMejor = Math.abs(score - 100) < 0.05
 
   if (avg == null) {
     return <span style={{ color: 'var(--muted)' }} title={`Sin cotizaciones del oferente en esta región → no contribuye a la Nota País`}>—</span>
   }
 
-  const tip = `SCORE DE LA REGIÓN (peso ${peso}%)\n` +
-    `Fórmula: (mejor promedio de la región ÷ promedio del oferente) × 100\n` +
-    `= (${best != null ? best.toFixed(2) : '—'} ÷ ${avg.toFixed(2)}) × 100\n` +
-    `= ${score.toFixed(1)}${esMejor ? '  ★ es el mejor de la región (obtiene 100)' : ''}\n` +
-    `Promedio del oferente sobre ${rutas} ruta(s) en esta región.\n` +
-    `Contribución = score × ${peso}% = ${contrib.toFixed(2)} a la Nota País.`
+  const tip = usaCosto
+    ? `SCORE DE LA REGIÓN (peso ${peso}%) — ponderado por VOLUMEN (ahorro real)\n` +
+      `Costo del oferente = Σ (tarifa × volumen ÷ divisor) en esta región = $${fmtMoney(costo || 0)}\n` +
+      `Score = (menor costo de la región ÷ costo del oferente) × 100 = ${score.toFixed(1)}${esMejor ? '  ★ mejor (100)' : ''}\n` +
+      `Tarifa promedio (informativa): ${avg.toFixed(0)}\n` +
+      `Contribución = score × ${peso}% = ${contrib.toFixed(2)} a la Nota País.`
+    : `SCORE DE LA REGIÓN (peso ${peso}%) — sin volumen, por tarifa promedio\n` +
+      `Score = (mejor promedio ÷ promedio del oferente) × 100 = ${score.toFixed(1)}\n` +
+      `Contribución = score × ${peso}% = ${contrib.toFixed(2)}.`
 
   return (
     <div title={tip}>
@@ -218,8 +223,7 @@ function CeldaRegion({ d, reg, peso }) {
         {score.toFixed(1)}{esMejor ? ' ★' : ''}
       </div>
       <div style={{ fontSize: 10.5, color: 'var(--muted)', lineHeight: 1.4 }}>
-        prom: {avg.toFixed(0)}<br />
-        mejor: {best != null ? best.toFixed(0) : '—'}<br />
+        {usaCosto ? <>costo: ${fmtMoney(costo || 0)}<br /></> : <>prom: {avg.toFixed(0)}<br /></>}
         × {peso}% = <b>{contrib.toFixed(2)}</b>
         {rutas ? <><br /><span style={{ fontSize: 9.5 }}>({rutas} ruta{rutas !== 1 ? 's' : ''})</span></> : null}
       </div>
