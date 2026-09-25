@@ -48,13 +48,13 @@ export const DEFAULT_E1 = {
 // Total: 70+5+5+15+5 = 100.
 export const DEFAULT_E2 = {
   pesos: {
-    tarifas: 70,
-    dias_libres: 5,
+    tarifas: 80,
+    dias_libres: 0,
     credito: 5,       // se divide en días + facturación al arribo
     gastos_destino: 0,
     allocation: 15,
     gastos_fob: 0,
-    representacion: 5
+    representacion: 0
   },
   reglas: {
     dias: { alto: { min: 21, pts: 5 }, medio: { min: 15, pts: 1 }, bajo: 0 },

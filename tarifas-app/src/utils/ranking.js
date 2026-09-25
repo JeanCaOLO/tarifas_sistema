@@ -134,21 +134,30 @@ export function calcularRanking(tarifas, respuestas, { pais, campo, regionFiltro
       }
       const contrib_tarifa = puntTarifa * (pesos.tarifas / 100)
 
+      // Días y Crédito: la regla da puntos; se escala a fracción (0..1) y se
+      // multiplica por el PESO del rubro. Así el peso configurado sí se aplica.
       const diasLibres = t.dias_libres_destino !== null ? Number(t.dias_libres_destino) : 0
-      const contrib_dias = puntosPorTramo(diasLibres, reglas.dias)
+      const diasPtsRegla = puntosPorTramo(diasLibres, reglas.dias)
+      const diasMaxRegla = reglas.dias?.alto?.pts || 5
+      const contrib_dias = diasMaxRegla > 0 ? (diasPtsRegla / diasMaxRegla) * (pesos.dias_libres || 0) : 0
 
       const credito = sub.credito_dias !== null ? Number(sub.credito_dias) : 0
-      const contrib_credito = puntosPorTramo(credito, reglas.credito)
+      const creditoPtsRegla = puntosPorTramo(credito, reglas.credito)
+      const creditoMaxRegla = reglas.credito?.alto?.pts || 5
+      const contrib_credito = creditoMaxRegla > 0 ? (creditoPtsRegla / creditoMaxRegla) * (pesos.credito || 0) : 0
 
       // La impresión de BL (gastoSum) ya se contempla dentro del costo de tarifa.
       // El rubro Gastos ya NO suma a la nota.
       const gastoSum = gastosArr[idx] || 0
       const contrib_gastos = 0
 
+      // Herramienta: sí/no de la regla, escalado al peso del rubro.
       const herramienta = sub.herramienta_seguimiento
-      const contrib_herramienta = (herramienta && herramienta.trim().length > 0)
-        ? (reglas.herramienta?.si ?? 5)
-        : (reglas.herramienta?.no ?? 0)
+      const tieneHerr = herramienta && herramienta.trim().length > 0
+      const herrPtsRegla = tieneHerr ? (reglas.herramienta?.si ?? 5) : (reglas.herramienta?.no ?? 0)
+      const herrMaxRegla = reglas.herramienta?.si || 5
+      const contrib_herramienta = herrMaxRegla > 0 ? (herrPtsRegla / herrMaxRegla) * (pesos.herramienta || 0) : 0
+
       const puntajeTotal = contrib_tarifa + contrib_dias + contrib_credito + contrib_herramienta
 
       porRuta.push({

@@ -175,11 +175,15 @@ export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFilt
       }
       const contrib_tarifa = puntTarifa * (pesos.tarifas / 100)
 
-      // 2. Días libres destino — tramos configurables
+      // 2. Días libres destino — tramos configurables, ESCALADO al peso del rubro.
+      // La regla da una fracción 0..1 (puntos / máximo de la regla) y se multiplica
+      // por el peso del rubro. Así, peso 0 → 0; peso N → aporta hasta N puntos.
       const diasLibres = t.dias_libres_destino !== null ? Number(t.dias_libres_destino) : 0
-      const contrib_dias = puntosPorTramoR2(diasLibres, reglas.dias)
+      const diasPtsRegla = puntosPorTramoR2(diasLibres, reglas.dias)
+      const diasMaxRegla = reglas.dias?.alto?.pts || 5
+      const contrib_dias = diasMaxRegla > 0 ? (diasPtsRegla / diasMaxRegla) * (pesos.dias_libres || 0) : 0
 
-      // 3. Crédito — puntos por días + puntos por facturación al arribo (configurable)
+      // 3. Crédito — puntos por días + facturación, ESCALADO al peso del rubro.
       const credito = sub.credito_dias !== null ? Number(sub.credito_dias) : 0
       const cr = reglas.credito || {}
       const creditoDiasMax = cr.creditoDiasMax ?? 2.5
@@ -190,8 +194,11 @@ export function calcularRankingR2(tarifas, respuestas, { pais, campo, regionFilt
       else if (credito > 0) contrib_credito_dias = (credito / (crDias.alto?.min || 60)) * creditoDiasMax
 
       const facturacion = sub.facturacion_aplica || ''
-      const contrib_credito_arribo = facturacion === 'arribo' ? (cr.facturacionArriboPts ?? 2.5) : 0
-      const contrib_credito = contrib_credito_dias + contrib_credito_arribo
+      const facturacionArriboPts = cr.facturacionArriboPts ?? 2.5
+      const contrib_credito_arribo = facturacion === 'arribo' ? facturacionArriboPts : 0
+      const creditoPtsRegla = contrib_credito_dias + contrib_credito_arribo
+      const creditoMaxRegla = creditoDiasMax + facturacionArriboPts
+      const contrib_credito = creditoMaxRegla > 0 ? (creditoPtsRegla / creditoMaxRegla) * (pesos.credito || 0) : 0
 
       // 4. Gastos destino — la impresión de BL ya se contempla en el costo de
       // tarifa. El rubro Gastos ya NO suma a la nota.
