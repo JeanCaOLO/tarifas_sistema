@@ -1,4 +1,4 @@
-import { useState, useContext, useMemo } from 'react'
+import { useContext, useMemo } from 'react'
 import { AdminContext } from '../../pages/AdminPage'
 import { calcularRanking } from '../../utils/ranking'
 import { calcularRankingR2 } from '../../utils/rankingR2'
@@ -14,28 +14,22 @@ const REGIONES = ['America', 'Europa', 'Asia Puertos Base', 'Asia']
 
 /**
  * Comparativo Volumen × Precio.
- * Muestra el mejor oferente por COSTO = (volumen/2) × tarifa por región y por
+ * Muestra el mejor oferente por COSTO = (tarifa + impresión BL) × volumen / divisor por región y por
  * país, y lo compara con el mejor oferente según el ranking actual (puntaje).
  */
 export default function AdminComparativoVolumen() {
   const {
     respuestas, tarifas, respuestasR2, tarifasR2, condOpR2,
-    volumenes, oferentesExcluidos, etapa
+    volumenes, oferentesExcluidos, etapa,
+    filtros, setFiltro, toggleRegionFiltro
   } = useContext(AdminContext)
 
-  const [campo, setCampo] = useState('tarifa_40_std')
-  const [periodo, setPeriodo] = useState('anual') // 'anual' | mes
-  const [paisFiltro, setPaisFiltro] = useState('')
-  // Regiones incluidas en TODO el comparativo. Vacío = todas incluidas.
-  const [regionesIncluidas, setRegionesIncluidas] = useState(() => new Set(REGIONES))
-
-  function toggleRegion(reg) {
-    setRegionesIncluidas((prev) => {
-      const next = new Set(prev)
-      if (next.has(reg)) next.delete(reg); else next.add(reg)
-      return next
-    })
-  }
+  // Filtros compartidos: se mantienen al cambiar de módulo.
+  const { campo, periodo, pais: paisFiltro, regiones: regionesIncluidas } = filtros
+  const setCampo = (v) => setFiltro('campo', v)
+  const setPeriodo = (v) => setFiltro('periodo', v)
+  const setPaisFiltro = (v) => setFiltro('pais', v)
+  const toggleRegion = toggleRegionFiltro
   // Divisor de la fórmula (persistido en Configuración → Volumen)
   const divNum = Number(getVolumenConfig().divisor) > 0 ? Number(getVolumenConfig().divisor) : 2
 
@@ -56,11 +50,11 @@ export default function AdminComparativoVolumen() {
         }
       })
       const { respuestas: rf, tarifas: tf } = aplicarExclusion(resp, tars, oferentesExcluidos)
-      return calcularRankingR2(tf, rf, { pais: '', campo, regionFiltro: '', formRegion: '' }).porRuta
+      return calcularRankingR2(tf, rf, { pais: '', campo, regionFiltro: '', formRegion: '', volumenes, divisor: divNum }).porRuta
     }
     const { respuestas: rf, tarifas: tf } = aplicarExclusion(respuestas, tarifas, oferentesExcluidos)
-    return calcularRanking(tf, rf, { pais: '', campo, regionFiltro: '', formRegion: '' }).porRuta
-  }, [etapa, respuestas, tarifas, respuestasR2, tarifasR2, condOpR2, oferentesExcluidos, campo])
+    return calcularRanking(tf, rf, { pais: '', campo, regionFiltro: '', formRegion: '', volumenes, divisor: divNum }).porRuta
+  }, [etapa, respuestas, tarifas, respuestasR2, tarifasR2, condOpR2, oferentesExcluidos, campo, volumenes, divNum])
 
   const regionesArr = useMemo(() => [...regionesIncluidas], [regionesIncluidas])
   const comp = useMemo(
@@ -115,7 +109,7 @@ export default function AdminComparativoVolumen() {
       <div className="card" style={{ padding: '12px 16px', marginBottom: 14, fontSize: 12.5, lineHeight: 1.6 }}>
         Mejor oferente según el <b>costo total</b> que nos representa. Fórmula usada:
         <div style={{ margin: '6px 0', padding: '8px 12px', background: 'var(--mint, #eef7f4)', borderRadius: 6, fontFamily: 'monospace', fontSize: 13 }}>
-          costo = (volumen ÷ {divNum}) × tarifa
+          costo = (tarifa + impresión de BL) × volumen ÷ {divNum}
         </div>
         Donde <b>volumen</b> = TEUs que movemos por ese puerto (según país destino y periodo),
         <b> tarifa</b> = tarifa base seleccionada del oferente, y <b>÷ {divNum}</b> convierte TEUs a
@@ -286,7 +280,7 @@ export default function AdminComparativoVolumen() {
       <div className="section-title" style={{ marginTop: 24 }}>Comparativo por Ruta (según país)</div>
       <div className="card" style={{ padding: '10px 14px', marginBottom: 10, fontSize: 12.5, lineHeight: 1.5 }}>
         Para cada ruta (país destino + puerto de origen) se listan los oferentes ordenados por
-        <b> costo = (volumen ÷ {divNum}) × tarifa</b>. El 🥇 es el más barato de esa ruta.
+        <b> costo = (tarifa + impresión BL) × volumen ÷ {divNum}</b>. El 🥇 es el más barato de esa ruta.
       </div>
       {rutasPorRegion.map((grupo) => (
         <div key={grupo.region} className="card" style={{ marginBottom: 16 }}>
@@ -330,7 +324,7 @@ export default function AdminComparativoVolumen() {
                         <td style={{ fontWeight: 600 }}>{d.oferente}</td>
                         <td className="td-num num">${fmtMoney(d.tarifa)}</td>
                         <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }}
-                          title={`Fórmula: (volumen ÷ ${divNum}) × tarifa\n= (${d.volumen.toLocaleString('en-US')} ÷ ${divNum}) × $${fmtMoney(d.tarifa)}\n= $${fmtMoney(d.costo)}`}>
+                          title={`Fórmula: (tarifa + impresión BL) × volumen ÷ ${divNum}\n= ($${fmtMoney(d.tarifa)} + $${fmtMoney(d.impresionBL || 0)}) × ${d.volumen.toLocaleString('en-US')} ÷ ${divNum}\n= $${fmtMoney(d.costo)}`}>
                           ${fmtMoney(d.costo)}
                         </td>
                         <td className="td-num num" style={{ color: i === 0 ? 'var(--muted)' : '#c0392b' }}
@@ -418,7 +412,7 @@ function tipCosto(o, divisor) {
   const vol = o.volumen || 0
   const tar = o.avgTarifa || 0
   return `COSTO TOTAL (menor = mejor)\n` +
-    `Fórmula: (volumen ÷ ${div}) × tarifa\n` +
+    `Fórmula: (tarifa + impresión BL) × volumen ÷ ${div}\n` +
     `Volumen del oferente: ${vol.toLocaleString('en-US')} TEUs\n` +
     `Tarifa promedio: $${fmtMoney(tar)}\n` +
     `= (${vol.toLocaleString('en-US')} ÷ ${div}) × $${fmtMoney(tar)}\n` +

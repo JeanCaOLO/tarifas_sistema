@@ -9,20 +9,19 @@ import FiltroRegiones, { REGIONES_ORIGEN } from './FiltroRegiones'
 import ExcluirOferentes, { aplicarExclusion } from './ExcluirOferentes'
 
 export default function AdminRankingRegional() {
-  const { respuestas, tarifas, oferentesExcluidos, volumenes } = useContext(AdminContext)
+  const {
+    respuestas, tarifas, oferentesExcluidos, volumenes,
+    filtros, setFiltro, toggleRegionFiltro, setRegionesFiltro
+  } = useContext(AdminContext)
+  // `formRegion` aquí selecciona el bloque regional a analizar (CA/VE), no es un
+  // filtro: no se comparte con los demás módulos.
   const [formRegion, setFormRegion] = useState('CA')
-  const [campo, setCampo] = useState('tarifa_40_std')
-  const [regiones, setRegiones] = useState(() => new Set(REGIONES_ORIGEN))
+  // Filtros compartidos: se mantienen al cambiar de módulo.
+  const { campo, regiones } = filtros
+  const setCampo = (v) => setFiltro('campo', v)
+  const toggleRegion = toggleRegionFiltro
 
   const regLabels = { America: 'América', Europa: 'Europa', 'Asia Puertos Base': 'Asia PB', Asia: 'Asia' }
-
-  function toggleRegion(reg) {
-    setRegiones((prev) => {
-      const next = new Set(prev)
-      if (next.has(reg)) next.delete(reg); else next.add(reg)
-      return next
-    })
-  }
 
   const { respuestas: respFilt, tarifas: tarFilt } = aplicarExclusion(respuestas, tarifas, oferentesExcluidos)
   const regionesArr = [...regiones]
@@ -56,8 +55,8 @@ export default function AdminRankingRegional() {
       <FiltroRegiones
         seleccionadas={regiones}
         onToggle={toggleRegion}
-        onTodas={() => setRegiones(new Set(REGIONES_ORIGEN))}
-        onSoloPB={() => setRegiones(new Set(['Asia Puertos Base']))}
+        onTodas={() => setRegionesFiltro(REGIONES_ORIGEN)}
+        onSoloPB={() => setRegionesFiltro(['Asia Puertos Base'])}
         label="Regiones de origen (los pesos se re-normalizan)"
       />
 

@@ -120,16 +120,54 @@ Suma de todas las contribuciones que tienen peso > 0.
 
 Agrega las rutas de cada oferente (clave: oferente + país destino).
 
-### 2.1 Tarifa global (por costo total ponderado)
-**No es promedio de porcentajes.** Se acumula el costo real:
+### 2.1 Tarifa global (costo total con benchmark común por país)
+**No es promedio de porcentajes.** Se acumula el costo real y se compara contra un
+**único punto de referencia por país**:
 ```
-costo_total       = Σ costo_oferente de todas sus rutas
-mejor_costo_total = Σ (menor costo de cada una de sus rutas)
-avg_tarifa = (mejor_costo_total ÷ costo_total) × peso_tarifa
+costo_total  = Σ costo_oferente de todas sus rutas
+benchmark    = MENOR costo_total entre TODOS los oferentes de ese país
+avg_tarifa   = (benchmark ÷ costo_total) × peso_tarifa
 ```
-Así, el oferente que da el **menor costo total real** (mayor ahorro en dinero) obtiene
-el puntaje de tarifa más alto. Esto evita que rutas pequeñas diluyan a un oferente que
-es el mejor en las rutas de alto volumen.
+El oferente más barato del país obtiene el peso completo (ej. 85.00) y los demás bajan
+en proporción exacta a lo que cuestan de más. Por eso **el orden del puntaje de tarifa
+respeta el orden del dinero** y coincide con el Comparativo Volumen.
+
+**Por qué el benchmark es común (cambio importante):** antes cada oferente se comparaba
+contra la suma de los mejores costos de **sus propias** rutas. Eso tenía dos defectos:
+- Premiaba **no cotizar** las rutas donde el oferente era caro (su referencia bajaba con él).
+- El puntaje **no era comparable** entre oferentes, porque cada uno usaba un denominador
+  distinto. Podía dar un orden diferente al del dinero real (ej. un oferente 4º en costo
+  apareciendo 2º en el ranking).
+
+**Columnas de dinero en la tabla:** además del puntaje, el ranking global muestra
+`Costo total` (dinero real) y `Gap vs #1` (cuánto cuesta de más que el oferente más
+barato del país). El `Gap vs #1` es la cifra que responde "cuánto ahorro pierdo si elijo
+a este en lugar del más barato".
+
+**Alcance:** el benchmark se calcula sobre los oferentes visibles con los filtros activos
+(país, tipo de contenedor, regiones de origen, oferentes excluidos). Cambiar un filtro
+cambia el benchmark y por tanto los puntajes de tarifa.
+
+### 2.1.1 Cobertura de volumen (⚠ leer siempre junto al Costo total)
+```
+volumen_total_pais = Σ volumen de TODAS las rutas evaluadas de ese país
+cobertura          = volumen_cubierto_del_oferente ÷ volumen_total_pais
+```
+El `Costo total` es una suma absoluta, así que **un oferente que no cotiza todas las
+rutas tiene un costo total menor sin ser más barato**. Ejemplo verificado: un oferente
+que cotiza solo 2 de 4 puertos (33.4% del volumen) da un costo total de $577 k contra
+$1.85 M de quien cotiza el 100%, y sale #1 con nota 85.00 aunque sus tarifas no sean las
+mejores.
+
+Por eso la tabla muestra la columna **Cobertura**:
+- **100%** → el `Costo total` y el `Gap vs #1` son comparables directamente.
+- **< 100% (marcado ⚠ en rojo)** → el `Costo total` NO es comparable. Hay que compararlo
+  por **Costo/TEU** (en el tooltip) o solo dentro de las rutas que sí cotiza, y decidir
+  cómo se cubre el volumen faltante.
+
+> Pendiente de decisión: si se quiere un ranking global justo con cobertura parcial, hay
+> que **imputar** el volumen no cotizado (por ejemplo, cargarlo al mejor costo disponible
+> de esa ruta) antes de sumar. Hoy no se imputa: solo se advierte.
 
 ### 2.2 Los demás rubros
 Se promedian las contribuciones por ruta:
@@ -199,14 +237,103 @@ Ordena a los oferentes por el **costo real** que representan, según nuestro vol
 
 ### 4.1 Costo por ruta
 ```
-costo = (volumen_del_puerto / divisor) × tarifa
+costo = (tarifa + impresión_BL) × volumen_del_puerto / divisor
 ```
-(Nota: aquí el costo NO incluye impresión de BL; es solo tarifa × volumen ÷ divisor.)
+Es **exactamente la misma fórmula** que usa el Ranking (sección 0 y 1.1). Antes esta
+vista omitía la impresión de BL, lo que producía diferencias de ~1% y podía invertir el
+orden respecto al Ranking. Ya está unificada.
 
 ### 4.2 Agregados
 - **Global por oferente:** suma de costos de todas sus rutas. Menor costo = mejor.
 - **Por región / por país:** mismo cálculo agrupado, con el mejor oferente por costo.
 - Se compara contra el mejor oferente por puntaje del ranking, para ver si coinciden.
+
+---
+
+## 4-bis. RANKING POR RUTA CON CAPACIDAD (Etapa 1 y 2)
+
+Módulo aparte (pestaña **🚢 Ranking por Ruta**). Por cada ruta (país destino + puerto de
+origen) muestra el puesto de cada oferente y, junto al dinero, la **capacidad** que
+declaró. Sirve para decidir la adjudicación por lane y la cascada entre proveedores.
+
+Archivos: `src/utils/rankingRutas.js` y `src/components/Admin/AdminRankingRutas.jsx`.
+
+### 4-bis.1 Puesto por ruta
+Reutiliza el `porRuta` de `calcularRanking` / `calcularRankingR2`, así que el criterio es
+el mismo del módulo Ranking. Dos modos de orden, seleccionables:
+- **Puntaje** (por defecto): igual que el Ranking.
+- **Costo**: dinero puro, el más barato de la ruta primero.
+
+Si un oferente tiene dos submissions que cubren la misma ruta, se conserva **la de menor
+tarifa**, para que no aparezca dos veces ni se le cuente la capacidad dos veces.
+
+**Orden de las rutas.** Se listan de la **más costosa a la más barata**, tomando como costo
+de la ruta lo que pagaríamos en ella con su oferente más barato (`mejorCosto`), es decir el
+dinero realmente en juego en ese lane. Así las rutas que más pesan en el presupuesto quedan
+arriba. El costo de cada ruta se muestra en su encabezado.
+
+### 4-bis.2 Costo y gap
+```
+costo   = (tarifa + impresión_BL) × volumen_del_periodo / divisor
+gap #1  = costo del oferente − costo del más barato de esa ruta
+```
+Misma fórmula que el Ranking y el Comparativo. El periodo es seleccionable: **Anual** usa
+el volumen anual para el costo y su **promedio mensual (anual ÷ 12)** para comparar la
+capacidad; elegir un mes usa ese mes para las dos cosas.
+
+### 4-bis.3 Capacidad: % de la demanda que cubre cada oferente
+El allocation se captura en el formulario de Etapa 2 como **«Allocation Total Mensual por
+Región (en TEUS)»**: cuatro campos (`allocation_america`, `allocation_europa`,
+`allocation_asia_pb`, `allocation_asia_restante`) en `rfp_respuestas_r2`. Es **mensual y en
+TEUs**.
+
+La comparación es directa: los TEUs disponibles contra la demanda de la ruta.
+```
+demanda_mes(ruta) = volumen_anual_del_puerto / 12     [TEUs/mes]
+                    (o el mes elegido, si no se usa "Anual")
+% de la demanda   = TEUs_disponibles_mes / demanda_mes(ruta)
+```
+
+**Ejemplo (verificado).** Un oferente declara 100 TEUs/mes y la ruta mueve 110 TEUs/mes →
+cubre el **90.9%** de esa ruta.
+
+Las dos columnas de capacidad son:
+
+| Columna | Qué es |
+|---|---|
+| **TEUs disp./mes** | lo que declaró disponible para la región de ese puerto |
+| **% de la demanda** | `TEUs disponibles ÷ demanda mensual de la ruta` |
+
+Si un oferente tiene varias submissions, se toma el **mayor** valor por región (mismo
+criterio que el rubro Allocation del ranking de Etapa 2).
+
+**Unidades.** El volumen propio y el allocation están **ambos en TEUs**, así que el
+porcentaje no depende de la unidad. El equivalente en contenedores de 40" HC es
+`TEUs ÷ divisor` (2 TEUs = 1 × 40" HC).
+
+### 4-bis.4 Lo único que hay que tener presente al leerlo
+El allocation se declara por **región**, así que la misma cifra se contrasta contra cada
+ruta de esa región por separado. Eso es lo correcto para responder «¿este oferente puede con
+esta ruta?», pero significa que **los porcentajes de dos puertos de la misma región no se
+suman entre sí**: comparten la misma capacidad. Si se le adjudican dos puertos de Asia PB al
+mismo proveedor, hay que verificar que su allocation alcance para la suma de ambos.
+
+Los KPIs de arriba resumen el riesgo de capacidad:
+- **Alguien la cubre solo**: al menos un oferente llega al 100% de la demanda por sí solo.
+- **Nadie alcanza solo**: hay capacidad declarada, pero ninguno cubre la ruta completa. Hay
+  que repartirla entre dos o más.
+- **El #1 no alcanza solo**: el mejor del ranking no cubre la ruta completa, aunque otro sí
+  podría. Es la señal para revisar la pareja primario/secundario de ese lane.
+- **Sin allocation declarado**: ningún oferente puso capacidad para esa región (dato faltante).
+- **Con un solo oferente**: no hay alternativa en esa ruta.
+- **Región no mapeada**: el puerto no cae en ninguna de las 4 regiones de allocation, así
+  que no se puede medir su capacidad. Estas rutas quedan **fuera** de los conteos, en vez de
+  reportar 0 en silencio (que se leería como «no declaró»).
+
+### 4-bis.5 Etapa 1 y el allocation
+El allocation **solo se pide en Etapa 2**. Al ver el módulo en Etapa 1, las tarifas y los
+puestos son de Etapa 1 pero la capacidad se toma del allocation declarado en Etapa 2 por el
+mismo oferente. El módulo lo avisa en pantalla.
 
 ---
 
@@ -229,14 +356,37 @@ entre las regiones restantes (re-normalización a 100%).
 
 ## 6. Consistencia entre las tres vistas
 
-Desde la última actualización, las tres vistas miden el **ahorro real ponderado por
-volumen**, por lo que ahora son consistentes:
+Las tres vistas usan **la misma fórmula de costo** y el **mismo benchmark**:
 
-| Vista | Qué mide | Pondera por volumen |
-|-------|----------|---------------------|
-| **Comparativo Volumen** | Costo real total (dinero) | Sí |
-| **Ranking Etapa 1/2** | Costo total ponderado + otros rubros | Sí (en tarifa) |
-| **Ranking Regional** | Costo por región ponderado por volumen | **Sí** |
+| Vista | Fórmula de costo | Benchmark | Qué ordena |
+|-------|------------------|-----------|------------|
+| **Comparativo Volumen** | `(tarifa + impresión_BL) × volumen ÷ divisor` | — (ordena por dinero) | Costo total, menor = mejor |
+| **Ranking Etapa 1/2** | `(tarifa + impresión_BL) × volumen ÷ divisor` | Menor costo total del país (común) | Nota total (tarifa + otros rubros) |
+| **Ranking Regional** | Igual (toma el puesto del Ranking) | Igual | Puntos de posición × peso de país |
+
+### 6.1 Lo único que puede separar al Ranking del Comparativo
+Con la fórmula unificada y el benchmark común, **el rubro de tarifa ya da el mismo orden
+que el dinero**. La nota total del Ranking puede aun así diferir, porque suma rubros que
+no son dinero:
+
+- **Etapa 1:** Días libres (5) + Crédito (5) + Herramienta (5) = hasta 15 puntos.
+- **Etapa 2:** Días + Crédito + Allocation + Representación, según los pesos activos.
+
+Con Tarifa al 85%, los 15 puntos restantes equivalen a ~15.9% del costo. Sobre un costo
+de ~$8.9 M eso son ~$1.4 M implícitos, mientras el valor real estimado de esos beneficios
+(días libres + crédito) ronda los ~$165 k. Es decir, **esos rubros están sobrevalorados
+cerca de 8×** y pueden invertir el orden final frente al dinero.
+
+**Cómo decidir por ahorro real:**
+1. Revisar primero la columna **Cobertura**. Descartar de la comparación directa a quien
+   esté por debajo de 100% (o compararlo por Costo/TEU).
+2. Ordenar por **Costo total** / **Gap vs #1** del Ranking global (o por el Comparativo
+   Volumen, que da lo mismo).
+3. Usar la nota total solo como desempate cuando el `Gap vs #1` sea menor que el valor
+   monetizado de los beneficios (días libres, crédito, allocation).
+4. Si se quiere que el Ranking ordene puro dinero, poner **Tarifa = 100** y el resto en 0
+   en Configuración → Pesos. Así `Nota total = avg_tarifa` y el orden es idéntico al del
+   Comparativo Volumen.
 
 **Ejemplo (Servica en Asia PB / Costa Rica, 40" HC):**
 Antes, el regional usaba promedio simple de tarifa (cada ruta contaba igual), así que
@@ -258,8 +408,33 @@ La única diferencia entre ambas vistas es el **orden final global**:
 Esto es intencional: el Regional mide "qué tan bien se posiciona en los países que más
 me importan", usando como base el mismo dinero real del Ranking.
 
-> Fallback: si no hay volumen cargado, el Ranking (y por tanto el Regional) usa la tarifa
-> cruda en lugar del costo ponderado.
+> Fallback: si no hay volumen cargado, el Ranking (y por tanto el Regional) compara por
+> **tarifa cruda** por ruta: `(mejor tarifa de la ruta ÷ tarifa) × peso`, y la nota global
+> de tarifa es el promedio de esas contribuciones. En ese modo no hay benchmark común por
+> país y el orden puede no reflejar el dinero total.
+
+---
+
+## 6-bis. Filtros compartidos entre módulos
+
+Los filtros de análisis viven en `AdminPage.jsx` (no en cada módulo), así que **se
+mantienen al moverse entre vistas**. Se comparten:
+
+| Filtro | Módulos que lo usan | Default |
+|---|---|---|
+| Tarifa base | Ranking, Ranking Regional, Ranking por Ruta, Comparativo Volumen, Comparativa E1↔E2 | **40" HC** |
+| País destino | Ranking, Ranking por Ruta, Comparativo Volumen, Comparativa E1↔E2 | Todos |
+| Periodo | Ranking por Ruta, Comparativo Volumen | Anual |
+| Región CA/VE | Ranking, Comparativa E1↔E2 | Todas |
+| Regiones de origen | Ranking, Ranking Regional, Ranking por Ruta, Comparativo Volumen | Las 4 |
+
+Dos aclaraciones:
+- En **Ranking Regional** el selector CA/VE elige el bloque regional a analizar (es
+  obligatorio, no admite «Todas»), así que **no** se comparte con los demás módulos.
+- Filtros propios de un módulo siguen siendo locales: el orden de puestos y «solo rutas con
+  riesgo» del Ranking por Ruta, o el modo global/detalle de la Comparativa.
+
+Los filtros se reinician al recargar la página; no se persisten.
 
 ---
 

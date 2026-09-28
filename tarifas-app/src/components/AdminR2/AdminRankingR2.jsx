@@ -1,4 +1,4 @@
-import { useState, useContext } from 'react'
+import { useContext } from 'react'
 import { AdminContext } from '../../pages/AdminPage'
 import { calcularRankingR2 } from '../../utils/rankingR2'
 import { fmtMoney } from '../../utils/format'
@@ -10,20 +10,17 @@ import FiltroRegiones, { REGIONES_ORIGEN, REG_LABELS } from '../Admin/FiltroRegi
 import ExcluirOferentes, { aplicarExclusion } from '../Admin/ExcluirOferentes'
 
 export default function AdminRankingR2() {
-  const { respuestasR2, tarifasR2, condOpR2, oferentesExcluidos, volumenes } = useContext(AdminContext)
+  const {
+    respuestasR2, tarifasR2, condOpR2, oferentesExcluidos, volumenes,
+    filtros, setFiltro, toggleRegionFiltro, setRegionesFiltro
+  } = useContext(AdminContext)
   const pesos = getPesosE2()
-  const [pais, setPais] = useState('')
-  const [campo, setCampo] = useState('tarifa_40_std')
-  const [regiones, setRegiones] = useState(() => new Set(REGIONES_ORIGEN))
-  const [formRegion, setFormRegion] = useState('')
-
-  function toggleRegion(reg) {
-    setRegiones((prev) => {
-      const next = new Set(prev)
-      if (next.has(reg)) next.delete(reg); else next.add(reg)
-      return next
-    })
-  }
+  // Filtros compartidos: se mantienen al cambiar de módulo.
+  const { pais, campo, regiones, formRegion } = filtros
+  const setPais = (v) => setFiltro('pais', v)
+  const setCampo = (v) => setFiltro('campo', v)
+  const setFormRegion = (v) => setFiltro('formRegion', v)
+  const toggleRegion = toggleRegionFiltro
 
   const tarifas = tarifasR2 || []
 
@@ -95,8 +92,8 @@ export default function AdminRankingR2() {
       <FiltroRegiones
         seleccionadas={regiones}
         onToggle={toggleRegion}
-        onTodas={() => setRegiones(new Set(REGIONES_ORIGEN))}
-        onSoloPB={() => setRegiones(new Set(['Asia Puertos Base']))}
+        onTodas={() => setRegionesFiltro(REGIONES_ORIGEN)}
+        onSoloPB={() => setRegionesFiltro(['Asia Puertos Base'])}
       />
 
       <ExcluirOferentes respuestas={respuestasR2} />
@@ -111,6 +108,8 @@ export default function AdminRankingR2() {
               <th className="th-num">Crédito ({pesos.credito}%)</th>
               <th className="th-num">Alloc. ({pesos.allocation}%)</th>
               <th className="th-num">Repr. ({pesos.representacion}%)</th><th className="th-num">Total</th>
+              <th className="th-num">Costo total</th><th className="th-num">Gap vs #1</th>
+              <th className="th-num">Cobertura</th>
               <th>Reporte</th>
             </tr></thead>
             <tbody>
@@ -122,12 +121,15 @@ export default function AdminRankingR2() {
                   <td style={{ fontWeight: 600 }}>{o.oferente}</td>
                   <td><span className="badge">{o.pais_nombre}</span></td>
                   <td className="td-num num" title={`Número de rutas evaluadas: ${o.rutas}`}>{o.rutas}</td>
-                  <td className="td-num num" title={`TARIFA (${pesos.tarifas}%) ponderada por VOLUMEN (costo total)\nPuntaje = (mejor costo total ÷ costo total del oferente) × ${pesos.tarifas}%\n= ($${fmtMoney(o.mejorCostoTotal || 0)} ÷ $${fmtMoney(o.costoTotal || 0)}) × ${pesos.tarifas}%\n= ${o.avg_tarifa.toFixed(2)} puntos\nCosto total = suma de (tarifa + impresión BL) × volumen ÷ divisor en sus ${o.rutas} ruta(s).\nMejor costo total = suma del menor costo de cada una de sus rutas.\nTarifa cotizada del oferente: ${rangoTxt(o.val_tarifa, '$')}`}>{o.avg_tarifa.toFixed(2)}</td>
+                  <td className="td-num num" title={`TARIFA (${pesos.tarifas}%) ponderada por VOLUMEN (costo total)\nPuntaje = (menor costo total del país ÷ costo total del oferente) × ${pesos.tarifas}%\n= ($${fmtMoney(o.mejorCostoTotal || 0)} ÷ $${fmtMoney(o.costoTotal || 0)}) × ${pesos.tarifas}%\n= ${o.avg_tarifa.toFixed(2)} puntos\nCosto total = suma de (tarifa + impresión BL) × volumen ÷ divisor en sus ${o.rutas} ruta(s).\nBENCHMARK COMÚN: el denominador de referencia es el MENOR costo total del país (el mismo para todos los oferentes), no el de las rutas propias. Así el orden del puntaje respeta el orden del dinero y coincide con el Comparativo Volumen.\nTarifa cotizada del oferente: ${rangoTxt(o.val_tarifa, '$')}`}>{o.avg_tarifa.toFixed(2)}</td>
                   <td className="td-num num" title={`Promedio de Días libres (${pesos.dias_libres}%) sobre ${o.rutas} ruta(s).\nValor del oferente: ${rangoTxt(o.val_dias, '', ' días')}`}>{o.avg_dias.toFixed(2)}</td>
                   <td className="td-num num" title={`Promedio de Crédito (${pesos.credito}%) sobre ${o.rutas} ruta(s).\nValor del oferente: ${o.val_credito ?? 0} días · facturación: ${o.val_facturacion || '(no indicada)'}`}>{o.avg_credito.toFixed(2)}</td>
                   <td className="td-num num" title={`Promedio de Allocation (${pesos.allocation}%) sobre ${o.rutas} ruta(s).\nAllocation total del oferente: ${o.val_alloc ?? 0}`}>{o.avg_allocation.toFixed(2)}</td>
                   <td className="td-num num" title={`REPRESENTACIÓN / OFICINAS (${pesos.representacion}%)\n# de "Sí" del oferente: ${o.val_repre ?? 0}\nPuntaje = (# "Sí" del oferente ÷ mayor # "Sí" entre oferentes) × ${pesos.representacion}%\nEs proporcional al oferente con más oficinas/representación (ese obtiene ${pesos.representacion}).\nUn valor bajo significa que tiene pocos "Sí" comparado con el líder, aunque sí tenga representación.`}>{o.avg_repre.toFixed(2)}</td>
                   <td className="td-num num" style={{ fontWeight: 800, color: 'var(--teal-deep)' }} title={`Promedio del puntaje total sobre ${o.rutas} ruta(s).\n= Tarifa ${o.avg_tarifa.toFixed(2)} + Días ${o.avg_dias.toFixed(2)} + Crédito ${o.avg_credito.toFixed(2)} + Alloc. ${o.avg_allocation.toFixed(2)} + Repr. ${o.avg_repre.toFixed(2)}`}>{o.avg_total.toFixed(2)}</td>
+                  <td className="td-num num" title={`COSTO TOTAL REAL (dinero)\n= suma de (tarifa + impresión BL) × volumen ÷ divisor en sus ${o.rutas} ruta(s)\nVolumen cubierto: ${fmtMoney(o.volumenCubierto || 0)} TEUs\nCosto por TEU: $${fmtMoney(o.costoPorTeu || 0)}\nEs la misma fórmula del módulo Comparativo Volumen.`}>${fmtMoney(o.costoTotal || 0)}</td>
+                  <td className="td-num num" style={{ color: (o.sobrecosto || 0) > 0 ? 'var(--danger, #c0392b)' : 'var(--teal-deep)', fontWeight: (o.sobrecosto || 0) === 0 ? 800 : 600 }} title={`GAP EN DINERO contra el oferente más barato del país\n= costo total del oferente − menor costo total del país\n= $${fmtMoney(o.costoTotal || 0)} − $${fmtMoney(o.mejorCostoTotal || 0)}\n= $${fmtMoney(o.sobrecosto || 0)}\n0 = es el más barato en dinero real.`}>{(o.sobrecosto || 0) === 0 ? '—' : '+$' + fmtMoney(o.sobrecosto || 0)}</td>
+                  <td className="td-num num" style={{ color: (o.cobertura || 0) >= 99.5 ? 'var(--teal-deep)' : '#c0392b', fontWeight: 700 }} title={`COBERTURA DE VOLUMEN — leer junto al Costo total\n= volumen cubierto ÷ volumen total evaluable del país\n= ${fmtMoney(o.volumenCubierto || 0)} ÷ ${fmtMoney(o.volumenTotalPais || 0)} TEUs\n= ${(o.cobertura || 0).toFixed(1)}%\n\n${(o.cobertura || 0) >= 99.5 ? 'Cotiza todo el volumen evaluable: su Costo total es comparable de forma directa.' : '⚠ NO cotiza todo el volumen. Su Costo total es MENOR solo porque le faltan rutas, no porque sea más barato. Compárelo por Costo/TEU o solo en las rutas que sí cotiza.'}\nCosto por TEU: $${fmtMoney(o.costoPorTeu || 0)}`}>{(o.cobertura || 0).toFixed(1)}%{(o.cobertura || 0) < 99.5 ? ' ⚠' : ''}</td>
                   <td><button className="btn btn-ghost btn-sm" title="Descargar reporte de este oferente con sus rubros más bajos" onClick={() => exportarReporteOferente(o, '2')}>📄 Descargar</button></td>
                 </tr>
               ))}

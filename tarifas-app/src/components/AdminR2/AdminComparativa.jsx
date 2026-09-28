@@ -10,10 +10,15 @@ import ExcluirOferentes, { aplicarExclusion } from '../Admin/ExcluirOferentes'
  * para el mismo oferente, permitiendo ver cómo cambia su posición.
  */
 export default function AdminComparativa() {
-  const { respuestas, tarifas, respuestasR2, tarifasR2, condOpR2, oferentesExcluidos } = useContext(AdminContext)
-  const [pais, setPais] = useState('')
-  const [campo, setCampo] = useState('tarifa_40_std')
-  const [formRegion, setFormRegion] = useState('')
+  const {
+    respuestas, tarifas, respuestasR2, tarifasR2, condOpR2, oferentesExcluidos, volumenes,
+    filtros, setFiltro
+  } = useContext(AdminContext)
+  // Filtros compartidos: se mantienen al cambiar de módulo.
+  const { pais, campo, formRegion } = filtros
+  const setPais = (v) => setFiltro('pais', v)
+  const setCampo = (v) => setFiltro('campo', v)
+  const setFormRegion = (v) => setFiltro('formRegion', v)
   const [vistaMode, setVistaMode] = useState('global') // global | detalle
 
   // Enriquecer respuestas R2 con condiciones operativas
@@ -45,8 +50,10 @@ export default function AdminComparativa() {
   }, [respuestas, respuestasR2])
 
   // Calcular rankings de ambas etapas
-  const { global: globalE1 } = calcularRanking(r1Tarif, r1Resp, { pais, campo, regionFiltro: '', formRegion })
-  const { global: globalE2 } = calcularRankingR2(r2Tarif, r2Resp, { pais, campo, regionFiltro: '', formRegion })
+  // Se pasa `volumenes` para que la nota de tarifa use el costo ponderado por
+  // volumen, igual que en los rankings y en el Comparativo Volumen.
+  const { global: globalE1 } = calcularRanking(r1Tarif, r1Resp, { pais, campo, regionFiltro: '', formRegion, volumenes })
+  const { global: globalE2 } = calcularRankingR2(r2Tarif, r2Resp, { pais, campo, regionFiltro: '', formRegion, volumenes })
 
   // Construir mapa comparativo por oferente
   const oferentes = new Set()

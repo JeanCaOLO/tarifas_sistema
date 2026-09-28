@@ -89,6 +89,11 @@ export function calcularRanking(tarifas, respuestas, { pais, campo, regionFiltro
   }
 
   const porRuta = []
+  // Volumen total evaluable por país (suma del volumen de TODAS las rutas del
+  // conjunto filtrado). Sirve para medir la COBERTURA de cada oferente: un
+  // oferente que cotiza pocas rutas tiene un costo total absoluto menor sin ser
+  // realmente más barato.
+  const volumenTotalPorPais = new Map()
 
   for (const [clave, arr] of grupos) {
     const tarifas_arr = arr.map((t) => Number(t[campo]))
@@ -97,6 +102,8 @@ export function calcularRanking(tarifas, respuestas, { pais, campo, regionFiltro
     // Volumen del puerto de esta ruta (según país destino, total anual).
     // Es el mismo para todos los oferentes de la ruta.
     const volumenRuta = usaVolumen ? volumenDe(volIdx, arr[0].pais, arr[0].origen, 'anual') : 0
+    const paisRuta = arr[0].pais
+    volumenTotalPorPais.set(paisRuta, (volumenTotalPorPais.get(paisRuta) || 0) + volumenRuta)
 
     // Gasto de impresión de BL por oferente (rubro Gastos y parte del costo de tarifa)
     const gastosArr = arr.map((t) => {
@@ -191,23 +198,38 @@ export function calcularRanking(tarifas, respuestas, { pais, campo, regionFiltro
     const clave = r.oferente.trim().toLowerCase() + '|' + r.pais
     if (!oferMap.has(clave)) oferMap.set(clave, {
       oferente: r.oferente, pais: r.pais, pais_nombre: r.pais_nombre, rutas: 0,
-      sum_dias: 0, sum_credito: 0, sum_gastos: 0, sum_herramienta: 0,
-      // Para la tarifa ponderada por volumen: costo total y mejor costo posible
-      sum_costo: 0, sum_mejorCosto: 0,
+      sum_tarifa: 0, sum_dias: 0, sum_credito: 0, sum_gastos: 0, sum_herramienta: 0,
+      // Para la tarifa ponderada por volumen: costo total y volumen cubierto
+      sum_costo: 0, sum_mejorCosto: 0, sum_volumen: 0,
       // valores originales del oferente
       val_tarifas: [], val_dias: [], val_credito: r.credito, val_gastos: [], val_herramienta: r.herramienta
     })
     const o = oferMap.get(clave)
     o.rutas++
+    o.sum_tarifa += r.contrib_tarifa
     o.sum_dias += r.contrib_dias
     o.sum_credito += r.contrib_credito
     o.sum_gastos += r.contrib_gastos
     o.sum_herramienta += r.contrib_herramienta
     o.sum_costo += (r.costoOferente || 0)
     o.sum_mejorCosto += (r.mejorCosto || 0)
+    o.sum_volumen += (r.volumenRuta || 0)
     o.val_tarifas.push(r.tarifa)
     o.val_dias.push(r.diasLibres)
     if (r.gastoSum > 0) o.val_gastos.push(r.gastoSum)
+  }
+
+  // BENCHMARK COMÚN por país: el menor costo total entre los oferentes del país.
+  // Antes cada oferente se comparaba contra la suma de los mejores costos de SUS
+  // rutas, lo que premiaba no cotizar rutas donde era caro y hacía que el score
+  // no fuera comparable entre oferentes. Ahora todos se miden contra el mismo
+  // punto de referencia, por lo que el orden del score respeta el orden del dinero.
+  const mejorCostoPorPais = new Map()
+  for (const o of oferMap.values()) {
+    if (o.sum_costo > 0) {
+      const actual = mejorCostoPorPais.get(o.pais)
+      if (actual == null || o.sum_costo < actual) mejorCostoPorPais.set(o.pais, o.sum_costo)
+    }
   }
 
   const rango = (arr) => {
@@ -217,18 +239,15 @@ export function calcularRanking(tarifas, respuestas, { pais, campo, regionFiltro
   }
 
   const global = [...oferMap.values()].map((o) => {
-    // TARIFA global ponderada por volumen (costo total):
-    // puntaje = (mejor costo total ÷ costo total del oferente) × peso
-    // El "mejor costo total" es la suma de los mejores costos de sus rutas.
-    let avg_tarifa
-    if (usaVolumen) {
-      avg_tarifa = (o.sum_costo > 0)
-        ? Math.round((o.sum_mejorCosto / o.sum_costo) * pesos.tarifas * 100) / 100
-        : 0
-    } else {
-      // Sin volumen: promedio simple de la contribución por ruta (comportamiento previo)
-      avg_tarifa = 0 // (no debería ocurrir aquí; se mantiene por seguridad)
-    }
+    // TARIFA global: (menor costo total del país ÷ costo total del oferente) × peso.
+    // El de MENOR costo real obtiene el peso completo; los demás, proporcional.
+    // Sin volúmenes cargados se cae al promedio de la contribución por ruta
+    // (comparación por tarifa cruda), para no dejar el rubro en 0.
+    const benchmark = mejorCostoPorPais.get(o.pais) || 0
+    const volTotalPais = volumenTotalPorPais.get(o.pais) || 0
+    const avg_tarifa = (usaVolumen && o.sum_costo > 0 && benchmark > 0)
+      ? Math.round((benchmark / o.sum_costo) * pesos.tarifas * 100) / 100
+      : Math.round((o.sum_tarifa / o.rutas) * 100) / 100
     const avg_dias = Math.round(o.sum_dias / o.rutas * 100) / 100
     const avg_credito = Math.round(o.sum_credito / o.rutas * 100) / 100
     const avg_gastos = Math.round(o.sum_gastos / o.rutas * 100) / 100
@@ -237,9 +256,14 @@ export function calcularRanking(tarifas, respuestas, { pais, campo, regionFiltro
     return {
       oferente: o.oferente, pais: o.pais, pais_nombre: o.pais_nombre, rutas: o.rutas,
       avg_tarifa, avg_dias, avg_credito, avg_gastos, avg_herramienta, avg_total,
-      // costos para tooltip
+      // Dinero real para decidir
       costoTotal: Math.round(o.sum_costo * 100) / 100,
-      mejorCostoTotal: Math.round(o.sum_mejorCosto * 100) / 100,
+      mejorCostoTotal: Math.round(benchmark * 100) / 100,
+      sobrecosto: Math.round((o.sum_costo - benchmark) * 100) / 100,
+      volumenCubierto: Math.round(o.sum_volumen * 100) / 100,
+      volumenTotalPais: Math.round(volTotalPais * 100) / 100,
+      cobertura: volTotalPais > 0 ? Math.round((o.sum_volumen / volTotalPais) * 1000) / 10 : 0,
+      costoPorTeu: o.sum_volumen > 0 ? Math.round((o.sum_costo / o.sum_volumen) * 100) / 100 : 0,
       // valores originales para tooltips
       val_tarifa: rango(o.val_tarifas),
       val_dias: rango(o.val_dias),

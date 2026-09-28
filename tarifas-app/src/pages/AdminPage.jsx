@@ -15,6 +15,8 @@ import AdminComparativa from '../components/AdminR2/AdminComparativa'
 import AdminCondicionesOperativas from '../components/AdminR2/AdminCondicionesOperativas'
 import AdminConfig from '../components/Admin/AdminConfig'
 import AdminComparativoVolumen from '../components/Admin/AdminComparativoVolumen'
+import AdminRankingRutas from '../components/Admin/AdminRankingRutas'
+import { REGIONES_ORIGEN } from '../components/Admin/FiltroRegiones'
 
 export const AdminContext = createContext(null)
 
@@ -32,6 +34,32 @@ export default function AdminPage() {
   const [tab, setTab] = useState('respuestas')
   // Oferentes excluidos del cálculo de rankings (clave: nombre normalizado)
   const [oferentesExcluidos, setOferentesExcluidos] = useState(() => new Set())
+
+  // === FILTROS DE ANÁLISIS COMPARTIDOS ===
+  // Viven aquí (no en cada módulo) para que se mantengan al moverse entre
+  // Ranking, Ranking Regional, Ranking por Ruta, Comparativo Volumen y
+  // Comparativa E1↔E2. La tarifa base arranca en 40" HC.
+  const [filtros, setFiltros] = useState(() => ({
+    campo: 'tarifa_40_hc',
+    pais: '',
+    periodo: 'anual',
+    formRegion: '',
+    regiones: new Set(REGIONES_ORIGEN)
+  }))
+
+  function setFiltro(clave, valor) {
+    setFiltros((prev) => ({ ...prev, [clave]: valor }))
+  }
+  function toggleRegionFiltro(reg) {
+    setFiltros((prev) => {
+      const next = new Set(prev.regiones)
+      if (next.has(reg)) next.delete(reg); else next.add(reg)
+      return { ...prev, regiones: next }
+    })
+  }
+  function setRegionesFiltro(regs) {
+    setFiltros((prev) => ({ ...prev, regiones: new Set(regs) }))
+  }
   // Se incrementa cuando cambia la configuración de pesos/reglas, para recalcular rankings
   const [configVersion, setConfigVersion] = useState(0)
 
@@ -147,7 +175,8 @@ export default function AdminPage() {
   const ctx = {
     user, respuestas, tarifas, respuestasR2, tarifasR2, condOpR2, volumenes,
     loading, cargarDatos, logout, tab, setTab, etapa, setEtapa: handleEtapaChange,
-    oferentesExcluidos, toggleOferenteExcluido, limpiarExcluidos, configVersion
+    oferentesExcluidos, toggleOferenteExcluido, limpiarExcluidos, configVersion,
+    filtros, setFiltro, toggleRegionFiltro, setRegionesFiltro
   }
 
   return (
@@ -159,6 +188,7 @@ export default function AdminPage() {
         {/* Configuración y Comparativo Volumen (disponibles en ambas etapas) */}
         {!loading && tab === 'config' && <AdminConfig />}
         {!loading && tab === 'volumen' && <AdminComparativoVolumen key={configVersion} />}
+        {!loading && tab === 'rutas' && <AdminRankingRutas key={configVersion} />}
 
         {/* Etapa 1 tabs */}
         {!loading && etapa === '1' && tab === 'respuestas' && <AdminRespuestas />}

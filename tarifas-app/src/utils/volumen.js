@@ -4,7 +4,7 @@ import { numOrNull } from './format'
 
 /**
  * Volumen propio por puerto de origen (TEUs que movemos), por país destino
- * y por mes. Se usa para el comparativo costo = (volumen / 2) × tarifa.
+ * y por mes. Se usa para el costo = (tarifa + impresión_BL) × volumen / divisor.
  */
 
 export const MESES = [

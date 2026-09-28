@@ -9,9 +9,11 @@ import { numOrNull } from './format'
  * Comparativo Volumen × Precio.
  *
  * Para cada evaluación oferente/ruta se calcula el COSTO que nos representa:
- *     costo = (volumen_del_puerto / 2) × tarifa
+ *     costo = (tarifa + impresión_BL) × volumen_del_puerto / divisor
  * donde el volumen sale de NUESTRO volumen por puerto de origen (según país
  * destino y periodo: mensual o anual). Menor costo = mejor oferente.
+ * Es la MISMA fórmula que usa el Ranking (utils/ranking.js y utils/rankingR2.js),
+ * para que ambos módulos den el mismo orden de dinero.
  *
  * Se agrega por oferente a nivel:
  *   - global (todo)
@@ -35,24 +37,28 @@ export function calcularComparativoVolumen(porRuta, volumenes, periodo = 'anual'
   const paisFiltro = opts.paisFiltro || ''
   // Regiones incluidas (array). Si viene vacío o null, se incluyen todas.
   const regionesIncluidas = (opts.regiones && opts.regiones.length) ? new Set(opts.regiones) : null
-  // Divisor de la fórmula costo = (volumen / divisor) × tarifa. Por defecto 2
-  // (1 contenedor de 40' = 2 TEUs). Configurable desde la vista.
+  // Divisor de la fórmula. Por defecto 2 (1 contenedor de 40' = 2 TEUs).
   const divisor = Number(opts.divisor) > 0 ? Number(opts.divisor) : 2
 
-  // Detalle por evaluación con costo
+  // Detalle por evaluación con costo.
+  // FÓRMULA UNIFICADA con el Ranking:
+  //   costo = (tarifa + impresión de BL) × volumen / divisor
   const detalle = []
   for (const r of porRuta) {
     if (paisFiltro && r.pais !== paisFiltro) continue
     if (regionesIncluidas && !regionesIncluidas.has(r.region)) continue
     const vol = volumenDe(idx, r.pais, r.origen, periodo)
-    const costo = (vol / divisor) * Number(r.tarifa || 0)
+    const tarifa = Number(r.tarifa || 0)
+    const impresionBL = Number(r.gastoSum || 0)
+    const costo = ((tarifa + impresionBL) * vol) / divisor
     detalle.push({
       oferente: r.oferente,
       pais: r.pais,
       pais_nombre: r.pais_nombre,
       region: r.region,
       origen: r.origen,
-      tarifa: Number(r.tarifa || 0),
+      tarifa,
+      impresionBL,
       volumen: vol,
       costo,
       puntaje: r.puntaje,
